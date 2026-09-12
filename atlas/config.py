@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+
+from atlas.schedule import ScheduleConfig
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -18,6 +21,7 @@ class DatasourceConfig:
     enabled: bool
     fetcher_kwargs: dict[str, Any]
     redis_ttl_s: int | None
+    schedule: ScheduleConfig
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -27,6 +31,21 @@ class AtlasConfig:
     redis_db: int
     postgres_dsn: str
     datasources: list[DatasourceConfig]
+
+
+def _parse_clock_time(value: str) -> dt.time:
+    return dt.datetime.strptime(value, "%H:%M").time()
+
+
+def _parse_schedule(entry: dict[str, Any]) -> ScheduleConfig:
+    raw = entry.get("schedule")
+    if not raw:
+        return ScheduleConfig()  # no restriction -- fetch any time
+    return ScheduleConfig(
+        workdays_only=bool(raw.get("workdays_only", False)),
+        start=_parse_clock_time(raw["start"]) if raw.get("start") else None,
+        end=_parse_clock_time(raw["end"]) if raw.get("end") else None,
+    )
 
 
 def load_config(path: str | Path = "config/datasources.yaml") -> AtlasConfig:
@@ -44,6 +63,7 @@ def load_config(path: str | Path = "config/datasources.yaml") -> AtlasConfig:
                 enabled=bool(entry.get("enabled", True)),
                 fetcher_kwargs=entry.get("kwargs", {}),
                 redis_ttl_s=entry.get("redis", {}).get("ttl_s"),
+                schedule=_parse_schedule(entry),
             )
         )
 

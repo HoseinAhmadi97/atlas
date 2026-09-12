@@ -7,6 +7,7 @@ import redis
 
 from atlas.config import AtlasConfig, DatasourceConfig, load_config
 from atlas.registry import load_fetcher
+from atlas.schedule import now_tehran
 from atlas.sinks import RedisSink, TimescaleSink
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -21,7 +22,21 @@ async def _run_datasource(
     fetcher = load_fetcher(ds.module, ds.cls, **ds.fetcher_kwargs)
     logger.info("starting %s (interval=%ss)", ds.name, ds.interval_s)
 
+    was_in_window = True  # log once if we start up already outside the window
     while True:
+        in_window = ds.schedule.allows(now_tehran())
+        if in_window != was_in_window:
+            logger.info(
+                "%s: %s scheduled window",
+                ds.name,
+                "entering" if in_window else "leaving",
+            )
+            was_in_window = in_window
+
+        if not in_window:
+            await asyncio.sleep(ds.interval_s)
+            continue
+
         try:
             records = await fetcher.fetch()
         except Exception:

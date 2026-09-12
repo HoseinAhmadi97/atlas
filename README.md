@@ -16,6 +16,7 @@ atlas/
 |-- config.py            # loads .env + config/datasources.yaml
 |-- runner.py             # entrypoint: one task per enabled datasource
 |-- gold_isins.py         # static ISIN list shared by nav_tadbir/nav_farabi
+|-- schedule.py           # ScheduleConfig: when a datasource may fetch
 |-- fetchers/
 |   |-- example_fetcher.py         # template: JSON/API-style datasource
 |   |-- example_scrape_fetcher.py  # template: HTML-scraping datasource
@@ -50,6 +51,24 @@ different datasources can use different methods. See
 `atlas/fetchers/example_scrape_fetcher.py` for the scraping template
 (`atlas/fetchers/example_fetcher.py` is the plain/JSON one). Add whatever
 extraction library a given datasource needs to `requirements.txt`.
+
+## When a datasource is allowed to fetch
+
+An optional `schedule:` block per datasource in `config/datasources.yaml`
+controls this -- checked in Asia/Tehran time before every poll:
+
+```yaml
+schedule:
+  workdays_only: true   # Iran work week (Saturday-Wednesday) only
+  start: "12:00"         # inclusive
+  end: "18:00"           # inclusive
+```
+
+Outside the window, `runner.py` just sleeps and rechecks -- `fetch()`
+is never called and nothing is written to either sink, so a closed
+market doesn't cost so much as one HTTP request. Omit `schedule:`
+entirely for "always allowed" (what `example`/`example_scrape` do).
+`ime`, `tadbir`, and `farabi` all currently use the same window above.
 
 ## atlas.raw_ticks schema
 

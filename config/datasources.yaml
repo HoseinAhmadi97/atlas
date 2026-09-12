@@ -7,6 +7,15 @@
 # Every datasource lands in the same atlas.raw_ticks table (see
 # atlas/db/schema.sql) -- `name` here is what becomes the `source`
 # column, not a separate table per datasource.
+#
+# Optional `schedule:` block controls WHEN a datasource is allowed to
+# fetch (checked before every poll, in Asia/Tehran time) -- outside the
+# window, the runner just sleeps and rechecks, no fetch() call, no
+# sink writes. Omit `schedule:` entirely for "always allowed" (the
+# default, and what `example`/`example_scrape` use below).
+#   workdays_only: true    -- Iran work week (Saturday-Wednesday) only
+#   start: "HH:MM"          -- inclusive
+#   end: "HH:MM"            -- inclusive
 
 datasources:
   # IME (Iran Mercantile Exchange) live market -- real HTTP API, no auth.
@@ -18,6 +27,10 @@ datasources:
     kwargs: {}
     redis:
       ttl_s: 30
+    schedule:
+      workdays_only: true
+      start: "12:00"
+      end: "18:00"
 
   # Tadbir NAV feed for TSE gold funds -- public, no auth.
   - name: tadbir
@@ -28,6 +41,10 @@ datasources:
     kwargs: {}
     redis:
       ttl_s: 60
+    schedule:
+      workdays_only: true
+      start: "12:00"
+      end: "18:00"
 
   # Farabi NAV feed for TSE gold funds -- second provider fetch_nav.py
   # also polls. Needs a real trading account's auth token from the
@@ -42,6 +59,10 @@ datasources:
       account_name: "Ahamdi_Farabi"
     redis:
       ttl_s: 60
+    schedule:
+      workdays_only: true
+      start: "12:00"
+      end: "18:00"
 
   - name: example
     module: atlas.fetchers.example_fetcher

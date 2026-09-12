@@ -120,6 +120,18 @@ that decision was made explicitly when this repo was started (2026-09-12).
     of ~31 concurrent token refreshes (one per ISIN) on every 401 is
     worse than losing one poll's data.
 
+12. **A datasource's `schedule:` (in `config/datasources.yaml`) gates
+    `fetch()` itself, not just what happens to its output.** `runner.py`
+    checks `ds.schedule.allows(now_tehran())` before calling `fetch()`;
+    outside the window it just sleeps and rechecks -- no fetch() call,
+    no sink writes, no wasted HTTP requests to a source that's closed
+    anyway. Don't move the check to run *after* `fetch()` (e.g. to
+    filter results) -- the point is to not fetch at all outside the
+    window. `ScheduleConfig` (`atlas/schedule.py`) has no dependency on
+    `runner.py` or any fetcher, so it's cheap to unit-test in isolation
+    (see `tests/test_schedule.py`) -- keep it that way rather than
+    inlining the day/time logic into `runner.py`.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other
