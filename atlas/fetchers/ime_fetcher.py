@@ -19,6 +19,20 @@ from atlas.base import Fetcher, RawRecord
 TEHRAN_TZ = ZoneInfo("Asia/Tehran")
 
 
+def _parse_last_update(value: str) -> dt.datetime:
+    """Parse IME's naive local timestamp into an Asia/Tehran-aware one.
+
+    Not `datetime.fromisoformat`: the API trims trailing zeros from the
+    fractional seconds (e.g. ".08" instead of ".080"), which
+    `fromisoformat` rejects on Python <3.11 (it demands exactly 3 or 6
+    digits). `strptime`'s `%f` accepts 1-6 digits and zero-pads on the
+    right, which matches what a trimmed ".08" actually means (0.08s,
+    not 0.008s).
+    """
+    fmt = "%Y-%m-%dT%H:%M:%S.%f" if "." in value else "%Y-%m-%dT%H:%M:%S"
+    return dt.datetime.strptime(value, fmt).replace(tzinfo=TEHRAN_TZ)
+
+
 class IMEFetcher(Fetcher):
     """IME CDC live market: one RawRecord per contract per poll."""
 
@@ -38,12 +52,7 @@ class IMEFetcher(Fetcher):
                 continue  # can't key a record with no symbol
 
             last_update = contract.get("LastUpdate")
-            if last_update:
-                # Naive local time as returned by the API -- the server
-                # (and this parse) both assume Asia/Tehran.
-                ts = dt.datetime.fromisoformat(last_update).replace(tzinfo=TEHRAN_TZ)
-            else:
-                ts = now
+            ts = _parse_last_update(last_update) if last_update else now
 
             records.append(
                 RawRecord(symbol=symbol, ts=ts, source=self.source, payload=contract)
