@@ -28,22 +28,38 @@ async def test_parses_one_record_per_contract():
         mock_get.return_value = MagicMock(json=lambda: SAMPLE_RESPONSE, raise_for_status=lambda: None)
         records = await fetcher.fetch()
 
-    assert {r.symbol for r in records} == {"LeadIngot", "ZincIngot"}
-    lead = next(r for r in records if r.symbol == "LeadIngot")
-    assert lead.source == IMEFetcher.source
+    assert {r.isin for r in records} == {"LeadIngot", "ZincIngot"}
+    lead = next(r for r in records if r.isin == "LeadIngot")
+    assert lead.price == 4710000.0
     assert lead.payload["LastTradedPrice"] == 4710000.0
     assert lead.ts.tzinfo is not None
 
 
 @pytest.mark.asyncio
-async def test_missing_last_update_falls_back_to_now():
+async def test_ts_is_fetch_time_not_source_time():
+    """`ts` must be the poll's wall-clock time, not LastUpdate -- that's
+    what keeps (isin, time, source) collision-free when LastUpdate
+    repeats across polls. `source_ts` carries the source's own value."""
     fetcher = IMEFetcher()
     with patch("atlas.fetchers.ime_fetcher.requests.get") as mock_get:
         mock_get.return_value = MagicMock(json=lambda: SAMPLE_RESPONSE, raise_for_status=lambda: None)
         records = await fetcher.fetch()
 
-    zinc = next(r for r in records if r.symbol == "ZincIngot")
-    assert zinc.ts is not None
+    lead = next(r for r in records if r.isin == "LeadIngot")
+    assert lead.source_ts == _parse_last_update("2026-09-12T16:48:00.493")
+    assert lead.ts != lead.source_ts
+
+
+@pytest.mark.asyncio
+async def test_missing_last_update_leaves_source_ts_none():
+    fetcher = IMEFetcher()
+    with patch("atlas.fetchers.ime_fetcher.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(json=lambda: SAMPLE_RESPONSE, raise_for_status=lambda: None)
+        records = await fetcher.fetch()
+
+    zinc = next(r for r in records if r.isin == "ZincIngot")
+    assert zinc.source_ts is None
+    assert zinc.resolved_source_ts() == zinc.ts  # falls back to ts
 
 
 @pytest.mark.asyncio
@@ -82,6 +98,6 @@ async def test_fetch_handles_trimmed_fractional_seconds_from_api():
         mock_get.return_value = MagicMock(json=lambda: response, raise_for_status=lambda: None)
         records = await fetcher.fetch()
 
-    assert records[0].ts == dt.datetime(
-        2026, 9, 12, 16, 53, 35, 80000, tzinfo=records[0].ts.tzinfo
+    assert records[0].source_ts == dt.datetime(
+        2026, 9, 12, 16, 53, 35, 80000, tzinfo=records[0].source_ts.tzinfo
     )

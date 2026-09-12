@@ -5,10 +5,10 @@ from atlas.registry import load_fetcher
 
 def test_loads_example_fetcher():
     fetcher = load_fetcher(
-        "atlas.fetchers.example_fetcher", "ExampleFetcher", symbols=["A", "B"]
+        "atlas.fetchers.example_fetcher", "ExampleFetcher", isins=["A", "B"]
     )
     assert fetcher.name == "example"
-    assert fetcher.config["symbols"] == ["A", "B"]
+    assert fetcher.config["isins"] == ["A", "B"]
 
 
 def test_rejects_non_fetcher_class():
@@ -17,9 +17,9 @@ def test_rejects_non_fetcher_class():
 
 
 @pytest.mark.asyncio
-async def test_example_fetcher_returns_one_record_per_symbol():
+async def test_example_fetcher_returns_one_record_per_isin():
     fetcher = load_fetcher(
-        "atlas.fetchers.example_fetcher", "ExampleFetcher", symbols=["A", "B", "C"]
+        "atlas.fetchers.example_fetcher", "ExampleFetcher", isins=["A", "B", "C"]
     )
     records = await fetcher.fetch()
-    assert {r.symbol for r in records} == {"A", "B", "C"}
+    assert {r.isin for r in records} == {"A", "B", "C"}

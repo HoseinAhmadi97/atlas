@@ -60,9 +60,9 @@ that decision was made explicitly when this repo was started (2026-09-12).
    `quant_db` (the database Atlas uses on the server) is TSE-GOLD-ALGO's
    live trading database, with its own `hist`/`live` schemas already in
    it. `atlas.raw_ticks` (schema-qualified) is the one table; a new
-   datasource is a new row shape in that same table (via the
-   `datasource` column), never a new table, and never anything created
-   outside the `atlas` schema.
+   datasource is a new row shape in that same table (via the `source`
+   column), never a new table, and never anything created outside the
+   `atlas` schema.
 
 7. **The default DSN uses the Postgres Unix socket, not a password.**
    `postgresql://quant@/quant_db?host=/var/run/postgresql` peer-auths as
@@ -78,6 +78,20 @@ that decision was made explicitly when this repo was started (2026-09-12).
    their logic into an Atlas fetcher is a separate, deliberate task per
    datasource -- not something to do incidentally while touching Atlas.
 
+9. **`atlas.raw_ticks`'s typed columns (`isin`, `time`, `price`,
+   `created_at`, `received_at`, `source`) deliberately mirror
+   `hist.gold_fund_nav` / `hist.gold_fundamental` (`nav` renamed
+   `price`), decided 2026-09-12 -- not this repo's own invention, don't
+   rename them to something that reads better in isolation. `payload`
+   (jsonb, full raw record) is the one addition beyond that convention.
+   Critically, `time` is the *fetch's* wall-clock time, not the source's
+   own timestamp -- `RawRecord.ts` maps to `time`/`received_at`,
+   `RawRecord.source_ts` maps to `created_at`. Do not swap these: a
+   source's own timestamp (e.g. IME's `LastUpdate`) can repeat across
+   polls when nothing has changed, which would collide on the
+   `(isin, time, source)` primary key if `time` held it instead of the
+   always-advancing fetch time.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other
@@ -85,18 +99,19 @@ that decision was made explicitly when this repo was started (2026-09-12).
 - Fetchers are `async def fetch()` even when the underlying HTTP call is
   sync-only for now -- keeps `runner.py`'s scheduling uniform as
   datasources with real async I/O are added.
-- `payload` in `RawRecord` / `atlas.raw_ticks` is stored as opaque JSON. Do not
-  add columns for datasource-specific fields to `atlas.raw_ticks` -- if a
-  field needs to be queried directly and efficiently, that belongs in
-  the downstream cleaned-data project's own schema, not here.
-- Every `RawRecord` carries `source` (a URL or short label for exactly
-  where the data physically came from) alongside `datasource` (the
-  config/registry grouping key, e.g. `"ime"`). A `Fetcher` subclass
-  declares a `source` class attribute and reuses it per record unless
-  it genuinely reads from more than one endpoint. Don't conflate the
-  two or drop `source` to save a column -- it is what makes provenance
-  answerable from the data itself instead of from memory of which
-  fetcher wrote it.
+- `payload` in `RawRecord` / `atlas.raw_ticks` is stored as opaque JSON,
+  beyond the standard typed columns (see invariant 9). Do not add more
+  columns for datasource-specific fields -- if a field needs to be
+  queried directly and efficiently, that belongs in the downstream
+  cleaned-data project's own schema, not here.
+- `Fetcher.name` (e.g. `"ime"`) is the one identifier a datasource
+  needs: it's the Redis key prefix, the registry/config key, and the
+  `source` column value, all at once. Don't reintroduce a second,
+  separate "where did this come from" field (a URL, an endpoint) as a
+  top-level `RawRecord` attribute -- a fetcher that genuinely has its
+  own endpoint constant keeps it as a private module-level constant
+  (see `IME_API_URL` in `ime_fetcher.py`), not part of the Fetcher/
+  RawRecord contract.
 
 ## Verifying changes
 

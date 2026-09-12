@@ -50,7 +50,7 @@ def main() -> None:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT create_hypertable(%s, %s, if_not_exists => TRUE)",
-                ("atlas.raw_ticks", "ts"),
+                ("atlas.raw_ticks", "time"),
             )
         conn.commit()
         print("atlas.raw_ticks hypertable: OK")

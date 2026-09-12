@@ -28,7 +28,6 @@ class ExampleScrapeFetcher(Fetcher):
     """
 
     name = "example_scrape"
-    source = "offline-demo-html"
 
     _DEMO_HTML = """
     <table id="prices">
@@ -37,16 +36,14 @@ class ExampleScrapeFetcher(Fetcher):
     </table>
     """
 
-    def _parse(self, html: str, source: str) -> list[RawRecord]:
+    def _parse(self, html: str) -> list[RawRecord]:
         soup = BeautifulSoup(html, "html.parser")
         now = dt.datetime.now(dt.timezone.utc)
         records = []
         for row in soup.select("#prices tr"):
-            symbol = row.select_one(".symbol").text.strip()
+            isin = row.select_one(".symbol").text.strip()
             price = float(row.select_one(".price").text.strip())
-            records.append(
-                RawRecord(symbol=symbol, ts=now, source=source, payload={"price": price})
-            )
+            records.append(RawRecord(isin=isin, ts=now, price=price, payload={"price": price}))
         return records
 
     async def fetch(self) -> list[RawRecord]:
@@ -56,6 +53,5 @@ class ExampleScrapeFetcher(Fetcher):
             resp.raise_for_status()
             html = resp.text
         else:
-            url = self.source  # offline demo path
-            html = self._DEMO_HTML
-        return self._parse(html, source=url)
+            html = self._DEMO_HTML  # offline demo path
+        return self._parse(html)

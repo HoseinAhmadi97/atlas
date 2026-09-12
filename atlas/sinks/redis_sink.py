@@ -11,7 +11,7 @@ KEY_PREFIX = "atlas:raw"
 
 
 class RedisSink:
-    """Latest-value cache. One key per (datasource, symbol).
+    """Latest-value cache. One key per (source, isin).
 
     Values carry a TTL so a datasource that stops fetching goes stale
     and disappears instead of serving a frozen snapshot forever -- the
@@ -22,12 +22,12 @@ class RedisSink:
         self.client = client
         self.default_ttl_s = default_ttl_s
 
-    def key(self, datasource: str, symbol: str) -> str:
-        return f"{KEY_PREFIX}:{datasource}:{symbol}"
+    def key(self, source: str, isin: str) -> str:
+        return f"{KEY_PREFIX}:{source}:{isin}"
 
     def write(
         self,
-        datasource: str,
+        source: str,
         records: Iterable[RawRecord],
         ttl_s: int | None = None,
     ) -> None:
@@ -36,17 +36,19 @@ class RedisSink:
         for r in records:
             value = json.dumps(
                 {
-                    "ts": r.ts.isoformat(),
-                    "symbol": r.symbol,
-                    "source": r.source,
+                    "time": r.ts.isoformat(),
+                    "isin": r.isin,
+                    "source": source,
+                    "price": r.price,
+                    "created_at": r.resolved_source_ts().isoformat(),
                     "payload": r.payload,
                 },
                 ensure_ascii=False,
                 default=str,
             )
-            pipe.set(self.key(datasource, r.symbol), value, ex=ttl)
+            pipe.set(self.key(source, r.isin), value, ex=ttl)
         pipe.execute()
 
-    def read(self, datasource: str, symbol: str) -> dict | None:
-        raw = self.client.get(self.key(datasource, symbol))
+    def read(self, source: str, isin: str) -> dict | None:
+        raw = self.client.get(self.key(source, isin))
         return json.loads(raw) if raw is not None else None

@@ -20,17 +20,12 @@ class ExampleFetcher(Fetcher):
     """
 
     name = "example"
-    source = "offline-demo"
 
     async def fetch(self) -> list[RawRecord]:
-        symbols = self.config.get("symbols", ["DEMO1", "DEMO2"])
+        isins = self.config.get("isins", ["DEMO1", "DEMO2"])
         now = dt.datetime.now(dt.timezone.utc)
-        return [
-            RawRecord(
-                symbol=s,
-                ts=now,
-                source=self.source,
-                payload={"price": round(random.uniform(100, 200), 2)},
-            )
-            for s in symbols
-        ]
+        records = []
+        for isin in isins:
+            price = round(random.uniform(100, 200), 2)
+            records.append(RawRecord(isin=isin, ts=now, price=price, payload={"price": price}))
+        return records

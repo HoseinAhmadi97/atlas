@@ -8,20 +8,45 @@ from typing import Any
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RawRecord:
-    """One raw observation. `payload` is stored as-is, unparsed.
+    """One raw observation.
 
-    `source` is provenance, not grouping: it says exactly where this
-    record physically came from (a URL, an endpoint name, "offline-demo").
-    `datasource` (the config/registry key, e.g. "ime") is the grouping
-    used for Redis keys and the `datasource` column -- a single
-    datasource can still carry a per-record `source` if it ever reads
-    from more than one endpoint.
+    Column mapping in atlas.raw_ticks (deliberately mirrors the existing
+    hist.gold_fund_nav / hist.gold_fundamental convention, with `nav`
+    renamed to `price`):
+
+        isin      -> isin        instrument identifier. Not always a
+                                  literal ISIN (e.g. IME contract codes
+                                  like "LeadIngot") -- kept as the
+                                  field/column name to match the
+                                  server's existing tables, not as a
+                                  format guarantee.
+        ts        -> time, received_at
+                                  wall-clock time when Atlas fetched
+                                  this record. Deliberately NOT the
+                                  source's own timestamp: `ts` is what
+                                  keeps the (isin, time, source) primary
+                                  key collision-free even when the
+                                  source hasn't ticked between polls
+                                  (IME's own LastUpdate can repeat).
+        source_ts -> created_at  the source's own reported timestamp
+                                  (e.g. IME's LastUpdate). Can repeat
+                                  across polls -- that's fine, `ts`
+                                  alone keeps rows unique. Defaults to
+                                  `ts` when a datasource has no
+                                  independent timestamp of its own.
+        price     -> price       nullable: not every datasource has one
+                                  scalar price to surface.
+        payload   -> payload     the full raw record, unparsed.
     """
 
-    symbol: str
+    isin: str
     ts: dt.datetime
-    source: str
+    price: float | None
     payload: dict[str, Any]
+    source_ts: dt.datetime | None = None
+
+    def resolved_source_ts(self) -> dt.datetime:
+        return self.source_ts if self.source_ts is not None else self.ts
 
 
 class Fetcher(abc.ABC):
@@ -31,14 +56,10 @@ class Fetcher(abc.ABC):
     `config/datasources.yaml` -- nothing else in Atlas needs to change.
     """
 
-    #: Unique short name, used as the Redis key prefix and the
-    #: `datasource` column value in raw_ticks. Set on subclasses.
+    #: Short label for this datasource -- used as the Redis key prefix
+    #: and written into the `source` column (varchar(50)) in raw_ticks.
+    #: Set on subclasses, e.g. "ime".
     name: str
-
-    #: Where this datasource's data physically comes from -- a URL or a
-    #: short human-readable label. Used as the default `source` on the
-    #: RawRecords this fetcher produces. Set on subclasses.
-    source: str
 
     def __init__(self, **config: Any) -> None:
         self.config = config

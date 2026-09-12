@@ -1,17 +1,34 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 from typing import Iterable
+from zoneinfo import ZoneInfo
 
 import psycopg2
 import psycopg2.extras
 
 from atlas.base import RawRecord
 
+TEHRAN_TZ = ZoneInfo("Asia/Tehran")
+
 INSERT_SQL = """
-INSERT INTO atlas.raw_ticks (ts, datasource, symbol, source, payload)
+INSERT INTO atlas.raw_ticks (isin, time, price, created_at, received_at, source, payload)
 VALUES %s
+ON CONFLICT (isin, time, source) DO NOTHING
 """
+
+
+def _naive_tehran(ts: dt.datetime) -> dt.datetime:
+    """atlas.raw_ticks stores naive local time, matching hist.gold_fund_nav.
+
+    A tz-aware datetime is converted to Asia/Tehran wall-clock and its
+    tzinfo dropped; an already-naive one is assumed to be Tehran local
+    time as-is (e.g. a fetcher that parsed a naive source timestamp).
+    """
+    if ts.tzinfo is None:
+        return ts
+    return ts.astimezone(TEHRAN_TZ).replace(tzinfo=None)
 
 
 class TimescaleSink:
@@ -31,17 +48,21 @@ class TimescaleSink:
             self._conn = psycopg2.connect(self.dsn)
         return self._conn
 
-    def write(self, datasource: str, records: Iterable[RawRecord]) -> None:
-        rows = [
-            (
-                r.ts,
-                datasource,
-                r.symbol,
-                r.source,
-                json.dumps(r.payload, ensure_ascii=False, default=str),
+    def write(self, source: str, records: Iterable[RawRecord]) -> None:
+        rows = []
+        for r in records:
+            time_ = _naive_tehran(r.ts)
+            rows.append(
+                (
+                    r.isin,
+                    time_,
+                    r.price,
+                    _naive_tehran(r.resolved_source_ts()),
+                    time_,  # received_at: same wall-clock capture as `time`
+                    source,
+                    json.dumps(r.payload, ensure_ascii=False, default=str),
+                )
             )
-            for r in records
-        ]
         if not rows:
             return
         conn = self._connection()

@@ -8,5 +8,5 @@ async def test_offline_demo_parses_two_rows():
     fetcher = load_fetcher("atlas.fetchers.example_scrape_fetcher", "ExampleScrapeFetcher")
     records = await fetcher.fetch()
 
-    by_symbol = {r.symbol: r.payload["price"] for r in records}
-    assert by_symbol == {"DEMO1": 150.25, "DEMO2": 98.10}
+    by_isin = {r.isin: r.price for r in records}
+    assert by_isin == {"DEMO1": 150.25, "DEMO2": 98.10}

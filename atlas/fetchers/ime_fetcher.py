@@ -16,6 +16,8 @@ from atlas.base import Fetcher, RawRecord
 # `payload` instead -- narrowing to a few fields is a cleaning decision,
 # which belongs in the downstream project, not here.
 
+IME_API_URL = "https://dataapi.ime.co.ir/api/CDC/CDCLiveMarket"
+
 TEHRAN_TZ = ZoneInfo("Asia/Tehran")
 
 
@@ -37,24 +39,33 @@ class IMEFetcher(Fetcher):
     """IME CDC live market: one RawRecord per contract per poll."""
 
     name = "ime"
-    source = "https://dataapi.ime.co.ir/api/CDC/CDCLiveMarket"
 
     async def fetch(self) -> list[RawRecord]:
-        resp = requests.get(self.source, timeout=(3, 10))
+        resp = requests.get(IME_API_URL, timeout=(3, 10))
         resp.raise_for_status()
         contracts = resp.json()
 
+        # Wall-clock fetch time, not the source's own timestamp -- this
+        # is `ts`, which is what keeps (isin, time, source) unique even
+        # when IME's LastUpdate repeats across polls (see base.py).
         now = dt.datetime.now(TEHRAN_TZ)
+
         records = []
         for contract in contracts:
-            symbol = contract.get("ContractCode")
-            if not symbol:
-                continue  # can't key a record with no symbol
+            isin = contract.get("ContractCode")
+            if not isin:
+                continue  # can't key a record with no identifier
 
             last_update = contract.get("LastUpdate")
-            ts = _parse_last_update(last_update) if last_update else now
+            source_ts = _parse_last_update(last_update) if last_update else None
 
             records.append(
-                RawRecord(symbol=symbol, ts=ts, source=self.source, payload=contract)
+                RawRecord(
+                    isin=isin,
+                    ts=now,
+                    price=contract.get("LastTradedPrice"),
+                    payload=contract,
+                    source_ts=source_ts,
+                )
             )
         return records

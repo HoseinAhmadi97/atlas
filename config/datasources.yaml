@@ -5,8 +5,8 @@
 #
 # Nothing in atlas/runner.py or atlas/registry.py needs to change.
 # Every datasource lands in the same atlas.raw_ticks table (see
-# atlas/db/schema.sql) -- the `datasource` column is what tells rows
-# apart, not separate tables.
+# atlas/db/schema.sql) -- `name` here is what becomes the `source`
+# column, not a separate table per datasource.
 
 datasources:
   # IME (Iran Mercantile Exchange) live market -- real HTTP API, no auth.
@@ -25,7 +25,7 @@ datasources:
     interval_s: 5
     enabled: false          # flip to true to smoke-test the pipeline
     kwargs:
-      symbols: ["DEMO1", "DEMO2"]
+      isins: ["DEMO1", "DEMO2"]
     redis:
       ttl_s: 30
 

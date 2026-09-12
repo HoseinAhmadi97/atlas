@@ -48,6 +48,33 @@ different datasources can use different methods. See
 (`atlas/fetchers/example_fetcher.py` is the plain/JSON one). Add whatever
 extraction library a given datasource needs to `requirements.txt`.
 
+## atlas.raw_ticks schema
+
+Columns deliberately mirror `hist.gold_fund_nav` / `hist.gold_fundamental`
+(`nav` renamed `price`) instead of inventing a new convention:
+
+| Column        | Type                        | Meaning |
+|---------------|-----------------------------|---------|
+| `isin`        | `varchar(12)`               | Instrument identifier. Not always a literal ISIN (e.g. IME's `"LeadIngot"`) -- kept as the name to match the server's existing tables. |
+| `time`        | `timestamp without time zone` | Wall-clock time Atlas fetched this record. **Not** the source's own timestamp -- see below. |
+| `price`       | `numeric`, nullable          | One scalar price, if the datasource has one. |
+| `created_at`  | `timestamp without time zone` | The source's own reported timestamp (e.g. IME's `LastUpdate`). |
+| `received_at` | `timestamp without time zone` | Same value as `time` (matches the existing fetchers' convention of capturing one `now()` for both). |
+| `source`      | `varchar(50)`                | Short label for which datasource wrote this row (the `Fetcher.name`, e.g. `"ime"`). |
+| `payload`     | `jsonb`                      | The full raw record, unparsed -- the one column beyond the mirrored convention. |
+
+Primary key: `(isin, time, source)`.
+
+**Why `time` is fetch time, not source time:** IME's own `LastUpdate`
+can repeat across polls when the market hasn't ticked between them. If
+`time` held that value, two polls 2 seconds apart with no new trade
+would collide on the primary key. Using the poll's own wall-clock time
+keeps every row unique regardless of how often the source actually
+updates; `created_at` still preserves the source's timestamp for
+whoever needs it. In `RawRecord` (`atlas/base.py`) this is `ts` (->
+`time`/`received_at`) and `source_ts` (-> `created_at`, defaults to
+`ts` when a datasource has no independent timestamp).
+
 ## Prerequisites (server)
 
 - Postgres reachable at `ATLAS_PG_DSN`. On the `alpha` quant box, Atlas
