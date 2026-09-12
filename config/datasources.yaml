@@ -10,12 +10,11 @@
 
 datasources:
   # IME (Iran Mercantile Exchange) live market -- real HTTP API, no auth.
-  # Flip `enabled: true` when ready to start polling it continuously.
   - name: ime
     module: atlas.fetchers.ime_fetcher
     class: IMEFetcher
     interval_s: 2
-    enabled: false
+    enabled: true
     kwargs: {}
     redis:
       ttl_s: 30
