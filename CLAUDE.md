@@ -108,6 +108,18 @@ that decision was made explicitly when this repo was started (2026-09-12).
     restarted -- found while this ran continuously against real IME
     traffic. Don't drop this handling to simplify `write()`.
 
+11. **`nav_farabi_fetcher.py` must never kill the process on a dead
+    token.** `fetch_nav.py`'s Farabi path calls `os._exit(1)` when its
+    token is rejected -- fine for a single-purpose script, fatal here:
+    it would take every other Atlas datasource down with it, violating
+    invariant 2. `NavFarabiFetcher` instead drops its cached token
+    (`self._token = None`) on a 401 and re-fetches on the next poll;
+    that poll's Farabi records are simply skipped, same as any other
+    per-isin failure. Do not "fix" this by reintroducing a hard exit,
+    and do not add per-request retry-with-refresh either -- a stampede
+    of ~31 concurrent token refreshes (one per ISIN) on every 401 is
+    worse than losing one poll's data.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other

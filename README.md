@@ -15,11 +15,13 @@ atlas/
 |-- registry.py          # config entry -> running Fetcher instance
 |-- config.py            # loads .env + config/datasources.yaml
 |-- runner.py             # entrypoint: one task per enabled datasource
+|-- gold_isins.py         # static ISIN list shared by nav_tadbir/nav_farabi
 |-- fetchers/
 |   |-- example_fetcher.py         # template: JSON/API-style datasource
 |   |-- example_scrape_fetcher.py  # template: HTML-scraping datasource
 |   |-- ime_fetcher.py             # real: Iran Mercantile Exchange live market
-|   `-- nav_tadbir_fetcher.py      # real: TSE gold fund NAV, Tadbir provider
+|   |-- nav_tadbir_fetcher.py      # real: TSE gold fund NAV, Tadbir provider
+|   `-- nav_farabi_fetcher.py      # real: TSE gold fund NAV, Farabi provider
 |-- sinks/
 |   |-- redis_sink.py     # latest-value cache, TTL per key
 |   `-- timescale_sink.py # latest-value-per-minute history (UPSERT)
@@ -139,11 +141,14 @@ from the start; the old ones migrate in gradually, each as its own
 Atlas fetcher, when
 there's time -- not as a single rewrite.
 
-Same story for `fetch_nav.py`, but only half-covered so far:
+Same story for `fetch_nav.py`: both providers it polls are now covered.
 `atlas/fetchers/nav_tadbir_fetcher.py` (`source="tadbir"`) reads the
-same public, no-auth Tadbir endpoint. The Farabi half
-(`source="farabi"`) is **not built** -- it needs a real trading
-account's auth token from the local `auto_farabi_fetch` service, and
-`fetch_nav.py` already depends on that same token; adding a second,
-independent consumer of it was left as a deliberate decision to make
-explicitly rather than something to build in passing.
+same public, no-auth Tadbir endpoint. `atlas/fetchers/nav_farabi_fetcher.py`
+(`source="farabi"`) reads the same Farabi endpoint, fetching its own
+token from the same local `auto_farabi_fetch` service `fetch_nav.py`
+already depends on -- a second, independent consumer of that token, by
+deliberate decision, not something added in passing. Unlike
+`fetch_nav.py`, it never kills the process on a dead token (`os._exit(1)`
+there would take every other Atlas datasource down with it): a 401
+just drops the cached token and skips that poll's Farabi records, and
+the next poll fetches a fresh one.

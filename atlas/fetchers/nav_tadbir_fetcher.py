@@ -8,15 +8,15 @@ import jdatetime
 import requests
 
 from atlas.base import Fetcher, RawRecord
+from atlas.gold_isins import GOLD_ISINS
 
 # Tadbir NAV feed for TSE gold funds -- public, no auth required.
 #
 # Reference: ~/TSE-GOLD-ALGO/datasources_fetchers/fetch_nav.py polls
-# this same endpoint (plus a second, Farabi, provider that needs a
-# real account's auth token -- not built here, see CLAUDE.md) and
-# writes both into hist.gold_fund_nav, distinguished only by `source`.
-# This fetcher covers the Tadbir half; `source` is "tadbir" to match
-# that table's existing values exactly.
+# this same endpoint (plus a second, Farabi, provider -- see
+# nav_farabi_fetcher.py) and writes both into hist.gold_fund_nav,
+# distinguished only by `source`. This fetcher covers the Tadbir half;
+# `source` is "tadbir" to match that table's existing values exactly.
 
 TADBIR_URL_TMPL = (
     "https://core.tadbirrlc.com//StockFutureInfoHandler"
@@ -25,22 +25,6 @@ TADBIR_URL_TMPL = (
 )
 
 TEHRAN_TZ = ZoneInfo("Asia/Tehran")
-
-# Static gold-fund ISIN list, copied from TSE-GOLD-ALGO's utils/base.py
-# (`gold_isin`) instead of read at runtime from market_fetcher's
-# `all_tickers_info` Redis key -- that key can be stale (no TTL) or
-# simply absent (market_fetcher isn't always running). Update this list
-# by hand if utils/base.py's gold_isin changes.
-DEFAULT_GOLD_ISINS = [
-    "IRTKLOTF0001", "IRTKZARF0001", "IRTKKIAN0001", "IRTKMOFD0001",
-    "IRTKROBA0001", "IRTKZARA0001", "IRTKZFAM0001", "IRTKNAFS0001",
-    "IRTKGANJ0001", "IRTKNAAB0001", "IRTKALTN0001", "IRTKJAVA0001",
-    "IRTKTABA0001", "IRTKLIAN0001", "IRTKZARV0001", "IRTKDRKS0001",
-    "IRTKATSH0001", "IRTKGHIR0001", "IRTKGOLN0001", "IRTKZOMR0001",
-    "IRTKEMRL0001", "IRTKROSE0001", "IRTKDORN0001", "IRTKZARG0001",
-    "IRTKRITO0001", "IRTKROZG0001", "IRTKJAMF0001", "IRTKNGIN0001",
-    "IRTKGOLD0001", "IRTKHAMY0001", "IRTKMIRA0001",
-]
 
 
 def _parse_nav_date(value: str | None) -> dt.datetime | None:
@@ -74,7 +58,7 @@ class NavTadbirFetcher(Fetcher):
     name = "tadbir"
 
     async def fetch(self) -> list[RawRecord]:
-        isins = self.config.get("isins", DEFAULT_GOLD_ISINS)
+        isins = self.config.get("isins", GOLD_ISINS)
         now = dt.datetime.now(TEHRAN_TZ)
 
         loop = asyncio.get_event_loop()
