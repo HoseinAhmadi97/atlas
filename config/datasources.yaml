@@ -68,6 +68,16 @@ datasources:
     enabled: false
     kwargs: {}
 
+  # Wallex crypto/currency markets -- public HTTP API, no auth. Not
+  # tied to TSE/IME trading hours, so no schedule window.
+  - name: wallex
+    module: atlas.fetchers.wallex_fetcher
+    class: WallexFetcher
+    interval_s: 10
+    enabled: false
+    kwargs:
+      symbols: ["USDTTMN"]
+
   - name: example
     module: atlas.fetchers.example_fetcher
     class: ExampleFetcher
