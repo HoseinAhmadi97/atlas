@@ -36,21 +36,127 @@ docs/architecture.md
 tests/
 ```
 
-## Adding a new datasource
+## Adding a new datasource, step by step
 
-1. Copy `atlas/fetchers/example_fetcher.py` -> `atlas/fetchers/<name>_fetcher.py`,
-   implement `fetch()`.
-2. Add an entry to `config/datasources.yaml`.
-3. Restart the runner.
+`runner.py` and `registry.py` are generic and never need to change for
+any of this -- if a step below has you editing either, something is off.
 
-`runner.py` and `registry.py` are generic and never need to change.
+### 1. Pick a short name
 
-`fetch()` doesn't care how the data is obtained -- a JSON API, a REST
-client, or scraping an HTML page with BeautifulSoup are all valid, and
-different datasources can use different methods. See
-`atlas/fetchers/example_scrape_fetcher.py` for the scraping template
-(`atlas/fetchers/example_fetcher.py` is the plain/JSON one). Add whatever
-extraction library a given datasource needs to `requirements.txt`.
+This becomes the `source` column value in `atlas.raw_ticks` and the
+Redis key prefix (`atlas:raw:<name>:<isin>`), e.g. `"ime"`, `"nav_tadbir"`.
+
+### 2. Copy a template
+
+Two live in `atlas/fetchers/`:
+
+- **`example_fetcher.py`** -- JSON/API-style datasource (has a JSON
+  endpoint to call). This is what `ime_fetcher.py` and
+  `nav_tadbir_fetcher.py` are built from.
+- **`example_scrape_fetcher.py`** -- HTML-scraping datasource (uses
+  BeautifulSoup). `fetch()` doesn't care how the data is obtained;
+  different datasources can use different methods, and a fetcher is
+  free to add whatever extraction library it needs to
+  `requirements.txt`.
+
+```bash
+cp atlas/fetchers/example_fetcher.py atlas/fetchers/<name>_fetcher.py
+```
+
+### 3. Write the fetcher class
+
+In the new file:
+
+1. Rename the class (e.g. `MyNewFetcher`).
+2. Set `name = "<name>"` (from step 1).
+3. Replace `fetch()`'s body with the real call. It must return a list
+   of `RawRecord`:
+
+```python
+RawRecord(
+    isin=...,        # instrument/symbol identifier
+    ts=...,          # wall-clock time of THIS fetch -- not the source's own timestamp
+    price=...,       # one scalar number, or None if there isn't one
+    payload={...},   # the whole raw record, unparsed -- don't narrow it down
+    source_ts=...,   # optional: the source's own reported timestamp, if it has one
+)
+```
+
+**`ts` vs `source_ts` matters.** `ts` must always be the fetch's own
+wall-clock moment, never something the source returned -- that's what
+keeps `(isin, time, source)` collision-free even when the source's own
+timestamp repeats across polls (see the schema section below). If the
+source does report its own timestamp (IME's `LastUpdate`, Tadbir's
+`NAVDate`), put it in `source_ts` so it still ends up in `created_at`.
+See `atlas/fetchers/ime_fetcher.py` or `atlas/fetchers/nav_tadbir_fetcher.py`
+for worked examples.
+
+### 4. Register it in `config/datasources.yaml`
+
+```yaml
+  - name: my_new_source
+    module: atlas.fetchers.my_new_source_fetcher
+    class: MyNewFetcher
+    interval_s: 10          # poll interval, in seconds
+    enabled: false          # flip to true after step 6-7
+    kwargs: {}              # any extra args fetch() needs (e.g. a symbol list)
+    schedule:               # optional -- omit entirely for "always allowed"
+      workdays_only: true
+      start: "12:00"
+      end: "18:00"
+```
+
+### 5. (Recommended) write a test
+
+`tests/test_<name>_fetcher.py`, mocking `requests.get` (or whatever
+`fetch()` calls) so it runs offline. See `tests/test_ime_fetcher.py` or
+`tests/test_nav_tadbir_fetcher.py` for the pattern.
+
+### 6. Run locally
+
+```bash
+python -m py_compile atlas/*.py atlas/**/*.py scripts/*.py
+pytest -q
+```
+
+### 7. Smoke-test the fetcher alone, without touching the running service
+
+```python
+import asyncio
+from atlas.fetchers.my_new_source_fetcher import MyNewFetcher
+
+async def main():
+    records = await MyNewFetcher().fetch()
+    print(len(records))
+    for r in records[:3]:
+        print(r.isin, r.price, r.ts, r.source_ts)
+
+asyncio.run(main())
+```
+
+### 8. Deploy
+
+```bash
+git add -A && git commit -m "..." && git push
+```
+
+On the server: `git pull --ff-only`, then repeat step 6 there.
+
+### 9. Flip `enabled: true` and restart
+
+```bash
+sudo systemctl restart atlas.service
+```
+
+### 10. Verify it's actually flowing
+
+```sql
+SELECT * FROM atlas.raw_ticks WHERE source = 'my_new_source' ORDER BY time DESC LIMIT 5;
+```
+
+```bash
+redis-cli KEYS "atlas:raw:my_new_source:*"
+```
 
 ## When a datasource is allowed to fetch
 
