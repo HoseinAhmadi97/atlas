@@ -8,10 +8,19 @@ from typing import Any
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RawRecord:
-    """One raw observation. `payload` is stored as-is, unparsed."""
+    """One raw observation. `payload` is stored as-is, unparsed.
+
+    `source` is provenance, not grouping: it says exactly where this
+    record physically came from (a URL, an endpoint name, "offline-demo").
+    `datasource` (the config/registry key, e.g. "ime") is the grouping
+    used for Redis keys and the `datasource` column -- a single
+    datasource can still carry a per-record `source` if it ever reads
+    from more than one endpoint.
+    """
 
     symbol: str
     ts: dt.datetime
+    source: str
     payload: dict[str, Any]
 
 
@@ -25,6 +34,11 @@ class Fetcher(abc.ABC):
     #: Unique short name, used as the Redis key prefix and the
     #: `datasource` column value in raw_ticks. Set on subclasses.
     name: str
+
+    #: Where this datasource's data physically comes from -- a URL or a
+    #: short human-readable label. Used as the default `source` on the
+    #: RawRecords this fetcher produces. Set on subclasses.
+    source: str
 
     def __init__(self, **config: Any) -> None:
         self.config = config

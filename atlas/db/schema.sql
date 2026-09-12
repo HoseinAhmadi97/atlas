@@ -12,9 +12,14 @@ CREATE TABLE IF NOT EXISTS atlas.raw_ticks (
     ts          timestamptz NOT NULL,
     datasource  text        NOT NULL,
     symbol      text        NOT NULL,
+    source      text        NOT NULL DEFAULT 'unknown',
     payload     jsonb       NOT NULL,
     ingested_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Migration for a table created before `source` existed (safe/no-op on
+-- a fresh install where the column is already there from CREATE TABLE).
+ALTER TABLE atlas.raw_ticks ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'unknown';
 
 CREATE INDEX IF NOT EXISTS raw_ticks_ds_symbol_ts_idx
     ON atlas.raw_ticks (datasource, symbol, ts DESC);

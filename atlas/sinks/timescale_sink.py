@@ -9,7 +9,7 @@ import psycopg2.extras
 from atlas.base import RawRecord
 
 INSERT_SQL = """
-INSERT INTO atlas.raw_ticks (ts, datasource, symbol, payload)
+INSERT INTO atlas.raw_ticks (ts, datasource, symbol, source, payload)
 VALUES %s
 """
 
@@ -33,7 +33,13 @@ class TimescaleSink:
 
     def write(self, datasource: str, records: Iterable[RawRecord]) -> None:
         rows = [
-            (r.ts, datasource, r.symbol, json.dumps(r.payload, ensure_ascii=False, default=str))
+            (
+                r.ts,
+                datasource,
+                r.symbol,
+                r.source,
+                json.dumps(r.payload, ensure_ascii=False, default=str),
+            )
             for r in records
         ]
         if not rows:

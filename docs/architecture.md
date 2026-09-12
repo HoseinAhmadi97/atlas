@@ -40,8 +40,12 @@ Keeping raw ingestion separate from cleaning means:
 ## Adding a datasource
 
 1. Copy `atlas/fetchers/example_fetcher.py` to `atlas/fetchers/<name>_fetcher.py`.
-2. Implement `fetch()` -- return a list of `RawRecord(symbol, ts, payload)`.
-   `payload` can be any JSON-serializable dict; it is stored as-is.
+2. Implement `fetch()` -- return a list of
+   `RawRecord(symbol, ts, source, payload)`. `payload` can be any
+   JSON-serializable dict; it is stored as-is. `source` is provenance
+   (the URL/endpoint/label data actually came from), not grouping --
+   most fetchers just pass their own `self.source` constant, see
+   `atlas/fetchers/ime_fetcher.py`.
 3. Add an entry to `config/datasources.yaml` pointing at the new module
    and class.
 4. Restart the runner (or, in dev, just re-run `python -m atlas.runner`).

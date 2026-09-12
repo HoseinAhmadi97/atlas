@@ -89,6 +89,14 @@ that decision was made explicitly when this repo was started (2026-09-12).
   add columns for datasource-specific fields to `atlas.raw_ticks` -- if a
   field needs to be queried directly and efficiently, that belongs in
   the downstream cleaned-data project's own schema, not here.
+- Every `RawRecord` carries `source` (a URL or short label for exactly
+  where the data physically came from) alongside `datasource` (the
+  config/registry grouping key, e.g. `"ime"`). A `Fetcher` subclass
+  declares a `source` class attribute and reuses it per record unless
+  it genuinely reads from more than one endpoint. Don't conflate the
+  two or drop `source` to save a column -- it is what makes provenance
+  answerable from the data itself instead of from memory of which
+  fetcher wrote it.
 
 ## Verifying changes
 

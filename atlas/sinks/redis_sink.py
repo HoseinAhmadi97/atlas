@@ -35,7 +35,12 @@ class RedisSink:
         pipe = self.client.pipeline(transaction=False)
         for r in records:
             value = json.dumps(
-                {"ts": r.ts.isoformat(), "symbol": r.symbol, "payload": r.payload},
+                {
+                    "ts": r.ts.isoformat(),
+                    "symbol": r.symbol,
+                    "source": r.source,
+                    "payload": r.payload,
+                },
                 ensure_ascii=False,
                 default=str,
             )

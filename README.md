@@ -16,8 +16,9 @@ atlas/
 |-- config.py            # loads .env + config/datasources.yaml
 |-- runner.py             # entrypoint: one task per enabled datasource
 |-- fetchers/
-|   |-- example_fetcher.py         # copy this: JSON/API-style datasource
-|   `-- example_scrape_fetcher.py  # copy this: HTML-scraping datasource
+|   |-- example_fetcher.py         # template: JSON/API-style datasource
+|   |-- example_scrape_fetcher.py  # template: HTML-scraping datasource
+|   `-- ime_fetcher.py             # real: Iran Mercantile Exchange live market
 |-- sinks/
 |   |-- redis_sink.py     # latest-value cache, TTL per key
 |   `-- timescale_sink.py # append-only raw history
@@ -93,7 +94,13 @@ pytest                              # unit tests, no real Redis/Postgres needed
 ## Relationship to existing fetchers
 
 `market_fetcher` and `TSE-GOLD-ALGO/datasources_fetchers` (fetch_ime,
-fetch_nav, fetch_gold_market_info) keep running as-is for now. Nothing
-about them changes here. New datasources go into Atlas from the start;
-the old ones migrate in gradually, each as its own Atlas fetcher, when
+fetch_nav, fetch_gold_market_info) keep running as-is, untouched --
+`atlas/fetchers/ime_fetcher.py` is a new, independent read of the same
+public IME endpoint `fetch_ime.py` uses, not a replacement of it.
+`fetch_ime.py` narrows each contract down to the 4 fields one downstream
+table needs; the Atlas fetcher keeps the whole raw record as `payload`
+(that narrowing is a cleaning decision for the future API/clean-data
+project to make, not this layer's job). New datasources go into Atlas
+from the start; the old ones migrate in gradually, each as its own
+Atlas fetcher, when
 there's time -- not as a single rewrite.
