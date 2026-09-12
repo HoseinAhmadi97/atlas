@@ -1,0 +1,17 @@
+# Storage / messaging
+redis
+psycopg2-binary
+PyYAML
+
+# Fetching -- individual fetchers pick whichever of these they need;
+# not every datasource uses every library.
+requests
+beautifulsoup4
+
+# Config
+python-dotenv
+
+# Testing
+pytest
+pytest-asyncio
+fakeredis

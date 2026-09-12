@@ -1,0 +1,15 @@
+[Unit]
+Description=Atlas raw datasource ingestion
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=quant
+WorkingDirectory=/home/quant/atlas
+EnvironmentFile=/home/quant/atlas/.env
+ExecStart=/opt/quant/envs/quant/bin/python -m atlas.runner
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

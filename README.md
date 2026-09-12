@@ -1,0 +1,95 @@
+# Atlas
+
+Raw datasource ingestion layer for the server: pulls price / time-series
+data from many datasources (more are added over time) and writes it,
+unmodified, into Redis (latest value) and Postgres/TimescaleDB (raw
+history). See [`docs/architecture.md`](docs/architecture.md) for the
+full picture and why cleaning/serving is deliberately a separate,
+later project.
+
+## Structure
+
+```
+atlas/
+├── base.py              # Fetcher ABC + RawRecord -- the only contract
+├── registry.py          # config entry -> running Fetcher instance
+├── config.py            # loads .env + config/datasources.yaml
+├── runner.py             # entrypoint: one task per enabled datasource
+├── fetchers/
+│   ├── example_fetcher.py         # copy this: JSON/API-style datasource
+│   └── example_scrape_fetcher.py  # copy this: HTML-scraping datasource
+├── sinks/
+│   ├── redis_sink.py     # latest-value cache, TTL per key
+│   └── timescale_sink.py # append-only raw history
+└── db/
+    └── schema.sql         # raw_ticks table + hypertable notes
+
+config/datasources.yaml    # one entry per datasource, see below
+scripts/bootstrap_db.py    # idempotent: creates raw_ticks (+ hypertable if available)
+deploy/atlas.service        # optional systemd unit
+docs/architecture.md
+tests/
+```
+
+## Adding a new datasource
+
+1. Copy `atlas/fetchers/example_fetcher.py` -> `atlas/fetchers/<name>_fetcher.py`,
+   implement `fetch()`.
+2. Add an entry to `config/datasources.yaml`.
+3. Restart the runner.
+
+`runner.py` and `registry.py` are generic and never need to change.
+
+`fetch()` doesn't care how the data is obtained -- a JSON API, a REST
+client, or scraping an HTML page with BeautifulSoup are all valid, and
+different datasources can use different methods. See
+`atlas/fetchers/example_scrape_fetcher.py` for the scraping template
+(`atlas/fetchers/example_fetcher.py` is the plain/JSON one). Add whatever
+extraction library a given datasource needs to `requirements.txt`.
+
+## Prerequisites (server)
+
+- Postgres reachable at `ATLAS_PG_DSN` (the box already runs Postgres 16
+  for other projects -- reuse it, or point at a dedicated DB).
+- **TimescaleDB extension** is *not yet installed* on the `alpha`
+  quant box's Postgres (only `plpgsql` is present as of 2026-09-12).
+  `raw_ticks` works as a plain indexed table without it, but for the
+  hypertable conversion someone with sudo needs to run, once:
+
+  ```bash
+  sudo apt install timescaledb-2-postgresql-16
+  sudo timescaledb-tune --quiet --yes
+  sudo systemctl restart postgresql
+  ```
+
+  This restarts Postgres system-wide, so coordinate before running it --
+  the box also serves other projects. `scripts/bootstrap_db.py` detects
+  whether the extension is present and skips the hypertable step (with a
+  message) if not; it never tries to install anything itself.
+- Redis (already running on the box, already used by `market_fetcher`).
+- Python: use the existing `/opt/quant/envs/quant/bin/python` (3.10,
+  already has pandas/redis/psycopg2/sqlalchemy) -- no new env needed,
+  just `pip install -r requirements.txt` into it, or create a venv.
+
+## Quickstart
+
+```bash
+cp .env.example .env               # fill in ATLAS_PG_DSN
+pip install -r requirements.txt
+python scripts/bootstrap_db.py     # creates raw_ticks
+# flip `enabled: true` on the `example` datasource in
+# config/datasources.yaml, then:
+python -m atlas.runner
+```
+
+```bash
+pytest                              # unit tests, no real Redis/Postgres needed
+```
+
+## Relationship to existing fetchers
+
+`market_fetcher` and `TSE-GOLD-ALGO/datasources_fetchers` (fetch_ime,
+fetch_nav, fetch_gold_market_info) keep running as-is for now. Nothing
+about them changes here. New datasources go into Atlas from the start;
+the old ones migrate in gradually, each as its own Atlas fetcher, when
+there's time -- not as a single rewrite.

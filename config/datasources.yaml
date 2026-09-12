@@ -1,0 +1,33 @@
+# One entry per datasource. To add a new one:
+#   1. write atlas/fetchers/<name>_fetcher.py (subclass Fetcher)
+#   2. add an entry here
+#   3. restart the runner
+#
+# Nothing in atlas/runner.py or atlas/registry.py needs to change.
+
+datasources:
+  - name: example
+    module: atlas.fetchers.example_fetcher
+    class: ExampleFetcher
+    interval_s: 5
+    enabled: false          # flip to true to smoke-test the pipeline
+    kwargs:
+      symbols: ["DEMO1", "DEMO2"]
+    redis:
+      ttl_s: 30
+    timescale:
+      table: raw_ticks
+
+  # Template for datasources with no JSON API -- only a page to scrape.
+  # Same Fetcher contract; only `fetch()`'s internals differ.
+  - name: example_scrape
+    module: atlas.fetchers.example_scrape_fetcher
+    class: ExampleScrapeFetcher
+    interval_s: 10
+    enabled: false
+    kwargs: {}
+      # url: "https://example.com/prices"   # omit to use the offline demo HTML
+    redis:
+      ttl_s: 30
+    timescale:
+      table: raw_ticks
