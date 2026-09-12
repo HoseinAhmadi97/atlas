@@ -7,6 +7,7 @@ PyYAML
 # not every datasource uses every library.
 requests
 beautifulsoup4
+jdatetime  # Jalali-calendar timestamps (e.g. Tadbir's NAVDate)
 
 # Config
 python-dotenv

@@ -19,6 +19,18 @@ datasources:
     redis:
       ttl_s: 30
 
+  # Tadbir NAV feed for TSE gold funds -- public, no auth. Farabi (the
+  # second provider fetch_nav.py also polls) needs a real account's
+  # auth token and isn't built here yet -- see CLAUDE.md.
+  - name: tadbir
+    module: atlas.fetchers.nav_tadbir_fetcher
+    class: NavTadbirFetcher
+    interval_s: 20   # NAVDate only has minute resolution; no point polling faster
+    enabled: false
+    kwargs: {}
+    redis:
+      ttl_s: 60
+
   - name: example
     module: atlas.fetchers.example_fetcher
     class: ExampleFetcher
