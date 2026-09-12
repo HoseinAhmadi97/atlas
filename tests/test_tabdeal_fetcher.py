@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from atlas.fetchers.tabdeal_fetcher import TabdealFetcher
+from atlas.fetchers.tabdeal_fetcher import TITLE_TO_ISIN, TabdealFetcher
 
 CURRENCY_RESPONSE = [
     {"price_title": "دلار", "last_price": "2339000", "price_change": -0.89},
@@ -70,6 +70,14 @@ async def test_one_endpoint_failing_does_not_drop_the_others():
         records = await fetcher.fetch()
 
     assert {r.isin for r in records} == {"dollar", "euro", "geram18"}
+
+
+# Regression: "geram_abshodeh" (14 chars) exceeded atlas.raw_ticks.isin
+# (varchar(12)) and failed the WHOLE poll's batch insert -- not just
+# that one row -- when smoke-tested live on the server.
+def test_all_isin_codes_fit_the_varchar12_column():
+    too_long = {title: isin for title, isin in TITLE_TO_ISIN.items() if len(isin) > 12}
+    assert too_long == {}
 
 
 @pytest.mark.asyncio

@@ -135,6 +135,18 @@ that decision was made explicitly when this repo was started (2026-09-12).
     (see `tests/test_schedule.py`) -- keep it that way rather than
     inlining the day/time logic into `runner.py`.
 
+13. **Every `isin` a fetcher produces must fit `varchar(12)`, or the
+    whole poll's batch insert fails -- not just that one row.**
+    `TimescaleSink.write()` builds one `execute_values()` statement per
+    poll; a single oversized value (`"geram_abshodeh"`, 14 chars,
+    found live when `tabdeal_fetcher.py` was first smoke-tested) fails
+    the entire INSERT and drops every other record from that poll too.
+    A fetcher with a name -> isin map (`TITLE_TO_ISIN`,
+    `SYMBOL_MAP`, ...) should have a test asserting every value is
+    <=12 chars (see `test_all_isin_codes_fit_the_varchar12_column` in
+    `tests/test_tabdeal_fetcher.py`), and an unmapped/unexpected name
+    should be skipped, never sent through as-is or silently truncated.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other
