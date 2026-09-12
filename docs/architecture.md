@@ -16,7 +16,7 @@ atlas/runner.py  -- one asyncio task per enabled datasource, own interval,
         +----------------------+
         v                      v
  RedisSink                TimescaleSink
- (latest value,           (append-only history,
+ (latest value,           (latest-value-per-minute,
   TTL per key)              atlas.raw_ticks table)
 ```
 

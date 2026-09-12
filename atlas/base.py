@@ -23,15 +23,19 @@ class RawRecord:
         ts        -> time, received_at
                                   wall-clock time when Atlas fetched
                                   this record. Deliberately NOT the
-                                  source's own timestamp: `ts` is what
-                                  keeps the (isin, time, source) primary
-                                  key collision-free even when the
-                                  source hasn't ticked between polls
-                                  (IME's own LastUpdate can repeat).
+                                  source's own timestamp. `time` is
+                                  truncated to the minute floor and
+                                  used in an UPSERT (see
+                                  TimescaleSink) -- matching
+                                  TSE-GOLD-ALGO's AsyncDataBuffer, this
+                                  makes atlas.raw_ticks a
+                                  latest-value-per-minute history, not
+                                  a full tick log: a second poll in the
+                                  same minute overwrites the first
+                                  rather than adding a row. `received_at`
+                                  keeps `ts` at full precision instead.
         source_ts -> created_at  the source's own reported timestamp
-                                  (e.g. IME's LastUpdate). Can repeat
-                                  across polls -- that's fine, `ts`
-                                  alone keeps rows unique. Defaults to
+                                  (e.g. IME's LastUpdate). Defaults to
                                   `ts` when a datasource has no
                                   independent timestamp of its own.
         price     -> price       nullable: not every datasource has one

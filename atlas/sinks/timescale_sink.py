@@ -12,10 +12,18 @@ from atlas.base import RawRecord
 
 TEHRAN_TZ = ZoneInfo("Asia/Tehran")
 
+# UPSERT, not append-only: mirrors utils/db.py's AsyncDataBuffer, which
+# truncates `time` to the minute and upserts on (isin, time, source) --
+# so this is "latest value per instrument per minute", not a full tick
+# log. See TimescaleSink's docstring for why.
 INSERT_SQL = """
 INSERT INTO atlas.raw_ticks (isin, time, price, created_at, received_at, source, payload)
 VALUES %s
-ON CONFLICT (isin, time, source) DO NOTHING
+ON CONFLICT (isin, time, source) DO UPDATE SET
+    price = EXCLUDED.price,
+    created_at = EXCLUDED.created_at,
+    received_at = EXCLUDED.received_at,
+    payload = EXCLUDED.payload
 """
 
 
@@ -31,8 +39,20 @@ def _naive_tehran(ts: dt.datetime) -> dt.datetime:
     return ts.astimezone(TEHRAN_TZ).replace(tzinfo=None)
 
 
+def _minute_floor(ts: dt.datetime) -> dt.datetime:
+    return ts.replace(second=0, microsecond=0)
+
+
 class TimescaleSink:
-    """Append-only raw history. One row per observation.
+    """Latest-value-per-minute history: one row per (isin, minute, source).
+
+    Matches TSE-GOLD-ALGO's utils/db.py AsyncDataBuffer exactly: `time`
+    is the fetch's wall-clock minute (truncated), `received_at` is that
+    same wall-clock moment at full precision (not truncated), and a
+    poll that lands in an already-seen minute UPDATEs the row instead
+    of adding a new one -- the second and third poll in one minute
+    don't triple the row count, they just refresh price/created_at/
+    received_at/payload to the latest observation.
 
     Works against a plain Postgres table too -- the hypertable
     conversion (`db/schema.sql`) is what makes it a TimescaleDB sink,
@@ -51,14 +71,14 @@ class TimescaleSink:
     def write(self, source: str, records: Iterable[RawRecord]) -> None:
         rows = []
         for r in records:
-            time_ = _naive_tehran(r.ts)
+            received_at = _naive_tehran(r.ts)
             rows.append(
                 (
                     r.isin,
-                    time_,
+                    _minute_floor(received_at),
                     r.price,
                     _naive_tehran(r.resolved_source_ts()),
-                    time_,  # received_at: same wall-clock capture as `time`
+                    received_at,
                     source,
                     json.dumps(r.payload, ensure_ascii=False, default=str),
                 )

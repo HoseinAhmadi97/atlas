@@ -7,7 +7,8 @@ Guidance for Claude Code working in this repository.
 The raw ingestion layer for the `alpha` quant server: many datasources
 (price/time-series, growing over time), one fetch loop each, writing
 unmodified JSON into Redis (latest value) and Postgres/TimescaleDB
-(`atlas.raw_ticks`, append-only). See `README.md` and `docs/architecture.md`.
+(`atlas.raw_ticks`, latest-value-per-minute -- see invariant 9). See
+`README.md` and `docs/architecture.md`.
 
 **Atlas does not clean data.** A separate, later project reads
 `atlas.raw_ticks` / the Redis keys and produces cleaned/joined data behind an
@@ -84,13 +85,20 @@ that decision was made explicitly when this repo was started (2026-09-12).
    `price`), decided 2026-09-12 -- not this repo's own invention, don't
    rename them to something that reads better in isolation. `payload`
    (jsonb, full raw record) is the one addition beyond that convention.
-   Critically, `time` is the *fetch's* wall-clock time, not the source's
-   own timestamp -- `RawRecord.ts` maps to `time`/`received_at`,
-   `RawRecord.source_ts` maps to `created_at`. Do not swap these: a
-   source's own timestamp (e.g. IME's `LastUpdate`) can repeat across
-   polls when nothing has changed, which would collide on the
-   `(isin, time, source)` primary key if `time` held it instead of the
-   always-advancing fetch time.
+   The mirroring goes deeper than column names: `TimescaleSink` truncates
+   `time` to the minute floor and UPSERTs on `(isin, time, source)`,
+   exactly like TSE-GOLD-ALGO's `utils/db.py` `AsyncDataBuffer.add_data()`
+   -- so `atlas.raw_ticks` is latest-value-per-minute, not a full tick
+   log. A second poll within the same minute updates the row (price,
+   created_at, received_at, payload) instead of adding one. `received_at`
+   is the same fetch moment as `time` but kept at full precision (not
+   truncated) -- do not truncate it too, that's the one place a poll's
+   exact wall-clock time survives. `RawRecord.ts` maps to
+   `time`/`received_at`, `RawRecord.source_ts` maps to `created_at`
+   (defaults to `ts`). Do not switch `ON CONFLICT ... DO UPDATE` back to
+   `DO NOTHING` -- that was tried first and is wrong: it would silently
+   drop every poll after the first one in a given minute instead of
+   refreshing the row.
 
 10. **`TimescaleSink` closes its connection on any write failure.** A
     failed INSERT leaves a psycopg2 connection in an aborted-transaction

@@ -21,7 +21,7 @@ atlas/
 |   `-- ime_fetcher.py             # real: Iran Mercantile Exchange live market
 |-- sinks/
 |   |-- redis_sink.py     # latest-value cache, TTL per key
-|   `-- timescale_sink.py # append-only raw history
+|   `-- timescale_sink.py # latest-value-per-minute history (UPSERT)
 `-- db/
     `-- schema.sql         # atlas.raw_ticks table + hypertable notes
 
@@ -56,24 +56,30 @@ Columns deliberately mirror `hist.gold_fund_nav` / `hist.gold_fundamental`
 | Column        | Type                        | Meaning |
 |---------------|-----------------------------|---------|
 | `isin`        | `varchar(12)`               | Instrument identifier. Not always a literal ISIN (e.g. IME's `"LeadIngot"`) -- kept as the name to match the server's existing tables. |
-| `time`        | `timestamp without time zone` | Wall-clock time Atlas fetched this record. **Not** the source's own timestamp -- see below. |
+| `time`        | `timestamp without time zone` | Wall-clock time Atlas fetched this record, **truncated to the minute**. Not the source's own timestamp -- see below. |
 | `price`       | `numeric`, nullable          | One scalar price, if the datasource has one. |
-| `created_at`  | `timestamp without time zone` | The source's own reported timestamp (e.g. IME's `LastUpdate`). |
-| `received_at` | `timestamp without time zone` | Same value as `time` (matches the existing fetchers' convention of capturing one `now()` for both). |
+| `created_at`  | `timestamp without time zone` | The source's own reported timestamp (e.g. IME's `LastUpdate`), full precision. |
+| `received_at` | `timestamp without time zone` | The same fetch moment as `time`, but at **full precision** (not truncated) -- when this row was last actually written. |
 | `source`      | `varchar(50)`                | Short label for which datasource wrote this row (the `Fetcher.name`, e.g. `"ime"`). |
 | `payload`     | `jsonb`                      | The full raw record, unparsed -- the one column beyond the mirrored convention. |
 
 Primary key: `(isin, time, source)`.
 
-**Why `time` is fetch time, not source time:** IME's own `LastUpdate`
-can repeat across polls when the market hasn't ticked between them. If
-`time` held that value, two polls 2 seconds apart with no new trade
-would collide on the primary key. Using the poll's own wall-clock time
-keeps every row unique regardless of how often the source actually
-updates; `created_at` still preserves the source's timestamp for
-whoever needs it. In `RawRecord` (`atlas/base.py`) this is `ts` (->
-`time`/`received_at`) and `source_ts` (-> `created_at`, defaults to
-`ts` when a datasource has no independent timestamp).
+**`atlas.raw_ticks` is latest-value-per-minute, not a full tick log.**
+This mirrors `utils/db.py`'s `AsyncDataBuffer` in TSE-GOLD-ALGO exactly:
+`add_data()` truncates `time` to the minute floor and upserts on
+`(isin, time, source)`. A poll that lands in a minute already written
+for that `(isin, source)` **updates** `price`/`created_at`/
+`received_at`/`payload` in place rather than adding a row -- so IME
+polling every 2 seconds still produces at most one row per instrument
+per minute, refreshed each poll, not sixty near-duplicate rows.
+`created_at` and `received_at` both stay at full precision so "when did
+the source last report this" and "when did we last see it" survive the
+truncation even though `time` itself doesn't. In `RawRecord`
+(`atlas/base.py`) this is `ts` (-> `time`/`received_at`) and `source_ts`
+(-> `created_at`, defaults to `ts` when a datasource has no independent
+timestamp). See `TimescaleSink` in `atlas/sinks/timescale_sink.py` for
+the UPSERT itself.
 
 ## Prerequisites (server)
 
