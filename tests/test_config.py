@@ -10,8 +10,6 @@ datasources:
     interval_s: 5
     enabled: true
     kwargs: {}
-    redis:
-      ttl_s: 30
     schedule:
       workdays_only: true
       start: "12:00"
@@ -23,8 +21,6 @@ datasources:
     interval_s: 5
     enabled: true
     kwargs: {}
-    redis:
-      ttl_s: 30
 """
 
 

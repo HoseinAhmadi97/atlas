@@ -38,7 +38,6 @@ async def test_outside_schedule_window_never_calls_fetch():
         interval_s=0.01,
         enabled=True,
         fetcher_kwargs={},
-        redis_ttl_s=30,
         schedule=ScheduleConfig(workdays_only=True),
     )
     thursday_noon = dt.datetime(2026, 9, 10, 12, 0, tzinfo=TEHRAN_TZ)  # weekend
@@ -58,7 +57,6 @@ async def test_inside_schedule_window_calls_fetch():
         interval_s=0.01,
         enabled=True,
         fetcher_kwargs={},
-        redis_ttl_s=30,
         schedule=ScheduleConfig(workdays_only=True),
     )
     saturday_noon = dt.datetime(2026, 9, 12, 12, 0, tzinfo=TEHRAN_TZ)  # workday

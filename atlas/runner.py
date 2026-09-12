@@ -47,7 +47,7 @@ async def _run_datasource(
 
         if records:
             try:
-                redis_sink.write(ds.name, records, ttl_s=ds.redis_ttl_s)
+                redis_sink.write(ds.name, records)
             except Exception:
                 logger.exception("redis write failed for %s", ds.name)
             try:

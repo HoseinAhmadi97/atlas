@@ -17,7 +17,7 @@ atlas/runner.py  -- one asyncio task per enabled datasource, own interval,
         v                      v
  RedisSink                TimescaleSink
  (latest value,           (latest-value-per-minute,
-  TTL per key)              atlas.raw_ticks table)
+  no TTL)                   atlas.raw_ticks table)
 ```
 
 ## Why this split
@@ -72,8 +72,9 @@ extraction method behind it.
   microseconds, for anything on the server that wants the current price
   without touching Postgres.
 - Postgres/TimescaleDB is where "what did X look like over the last N
-  days" is answered from -- Redis keys expire (TTL) and are not meant as
-  history.
+  days" is answered from -- Redis holds one overwritten snapshot per
+  key (no TTL, no history) and is never the place to reconstruct the
+  past from.
 
 They are written independently and are allowed to disagree briefly (e.g.
 Redis write succeeds, Postgres write fails) -- `runner.py` logs each sink

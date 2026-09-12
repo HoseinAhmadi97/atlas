@@ -11,27 +11,21 @@ KEY_PREFIX = "atlas:raw"
 
 
 class RedisSink:
-    """Latest-value cache. One key per (source, isin).
-
-    Values carry a TTL so a datasource that stops fetching goes stale
-    and disappears instead of serving a frozen snapshot forever -- the
-    failure mode `market_fetcher`'s no-TTL `SET` has today.
+    """Latest-value snapshot cache. One key per (source, isin), no TTL:
+    a key is simply overwritten on the next successful write, never
+    expired. A datasource that stops fetching leaves its last value in
+    place rather than the key disappearing -- freshness is judged from
+    `time`/`created_at` inside the value itself, not from whether the
+    key still exists.
     """
 
-    def __init__(self, client: redis.Redis, default_ttl_s: int = 120) -> None:
+    def __init__(self, client: redis.Redis) -> None:
         self.client = client
-        self.default_ttl_s = default_ttl_s
 
     def key(self, source: str, isin: str) -> str:
         return f"{KEY_PREFIX}:{source}:{isin}"
 
-    def write(
-        self,
-        source: str,
-        records: Iterable[RawRecord],
-        ttl_s: int | None = None,
-    ) -> None:
-        ttl = ttl_s if ttl_s is not None else self.default_ttl_s
+    def write(self, source: str, records: Iterable[RawRecord]) -> None:
         pipe = self.client.pipeline(transaction=False)
         for r in records:
             value = json.dumps(
@@ -46,7 +40,7 @@ class RedisSink:
                 ensure_ascii=False,
                 default=str,
             )
-            pipe.set(self.key(source, r.isin), value, ex=ttl)
+            pipe.set(self.key(source, r.isin), value)
         pipe.execute()
 
     def read(self, source: str, isin: str) -> dict | None:

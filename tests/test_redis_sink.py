@@ -7,7 +7,7 @@ from atlas.sinks.redis_sink import RedisSink
 
 
 def test_write_then_read_roundtrip():
-    sink = RedisSink(fakeredis.FakeRedis(), default_ttl_s=60)
+    sink = RedisSink(fakeredis.FakeRedis())
     ts = dt.datetime(2026, 9, 12, 8, 45, tzinfo=dt.timezone.utc)
     records = [RawRecord(isin="FOO", ts=ts, price=123.4, payload={"price": 123.4})]
 
@@ -25,11 +25,21 @@ def test_missing_key_returns_none():
     assert sink.read("unit-test", "NOPE") is None
 
 
-def test_ttl_is_applied():
+def test_write_has_no_expiry():
     client = fakeredis.FakeRedis()
-    sink = RedisSink(client, default_ttl_s=30)
+    sink = RedisSink(client)
     ts = dt.datetime.now(dt.timezone.utc)
     sink.write("unit-test", [RawRecord(isin="FOO", ts=ts, price=None, payload={})])
 
-    ttl = client.ttl(sink.key("unit-test", "FOO"))
-    assert 0 < ttl <= 30
+    assert client.ttl(sink.key("unit-test", "FOO")) == -1  # -1: key exists, no TTL
+
+
+def test_second_write_overwrites_the_snapshot():
+    client = fakeredis.FakeRedis()
+    sink = RedisSink(client)
+    ts = dt.datetime.now(dt.timezone.utc)
+
+    sink.write("unit-test", [RawRecord(isin="FOO", ts=ts, price=1.0, payload={})])
+    sink.write("unit-test", [RawRecord(isin="FOO", ts=ts, price=2.0, payload={})])
+
+    assert sink.read("unit-test", "FOO")["price"] == 2.0

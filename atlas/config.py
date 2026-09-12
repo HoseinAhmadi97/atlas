@@ -20,7 +20,6 @@ class DatasourceConfig:
     interval_s: float
     enabled: bool
     fetcher_kwargs: dict[str, Any]
-    redis_ttl_s: int | None
     schedule: ScheduleConfig
 
 
@@ -62,7 +61,6 @@ def load_config(path: str | Path = "config/datasources.yaml") -> AtlasConfig:
                 interval_s=float(entry.get("interval_s", 5)),
                 enabled=bool(entry.get("enabled", True)),
                 fetcher_kwargs=entry.get("kwargs", {}),
-                redis_ttl_s=entry.get("redis", {}).get("ttl_s"),
                 schedule=_parse_schedule(entry),
             )
         )

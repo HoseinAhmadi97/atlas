@@ -38,11 +38,14 @@ that decision was made explicitly when this repo was started (2026-09-12).
    between "latest value" and "history" is fine; blocking every
    datasource on both sinks succeeding is not.
 
-4. **Redis keys always carry a TTL.** `market_fetcher.py` (a different,
-   pre-existing project on this server) sets keys with no expiry, so a
-   dead fetcher's last value is served forever with nothing to say it's
-   stale. `RedisSink` defaults `ttl_s` from config specifically to avoid
-   reproducing that here.
+4. **Redis keys never expire, by deliberate decision (2026-09-12).**
+   `RedisSink` used to set a TTL specifically to avoid `market_fetcher.py`'s
+   no-TTL keys serving a dead fetcher's stale value forever with nothing
+   to say so. That tradeoff was reversed on purpose: Redis is
+   latest-snapshot-only now, plain `SET` with no `ex=`, and freshness is
+   judged from `time`/`created_at` inside the value itself, not from
+   whether the key still exists. Do not reintroduce a TTL without that
+   decision being revisited explicitly -- it isn't an oversight.
 
 5. **`atlas/db/schema.sql`'s hypertable conversion is commented out, and
    `scripts/bootstrap_db.py` decides at runtime whether to apply it.**

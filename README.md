@@ -24,7 +24,7 @@ atlas/
 |   |-- nav_tadbir_fetcher.py      # real: TSE gold fund NAV, Tadbir provider
 |   `-- nav_farabi_fetcher.py      # real: TSE gold fund NAV, Farabi provider
 |-- sinks/
-|   |-- redis_sink.py     # latest-value cache, TTL per key
+|   |-- redis_sink.py     # latest-value snapshot cache, no TTL
 |   `-- timescale_sink.py # latest-value-per-minute history (UPSERT)
 `-- db/
     `-- schema.sql         # atlas.raw_ticks table + hypertable notes
