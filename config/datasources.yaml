@@ -4,6 +4,9 @@
 #   3. restart the runner
 #
 # Nothing in atlas/runner.py or atlas/registry.py needs to change.
+# Every datasource lands in the same atlas.raw_ticks table (see
+# atlas/db/schema.sql) -- the `datasource` column is what tells rows
+# apart, not separate tables.
 
 datasources:
   - name: example
@@ -15,8 +18,6 @@ datasources:
       symbols: ["DEMO1", "DEMO2"]
     redis:
       ttl_s: 30
-    timescale:
-      table: raw_ticks
 
   # Template for datasources with no JSON API -- only a page to scrape.
   # Same Fetcher contract; only `fetch()`'s internals differ.
@@ -29,5 +30,3 @@ datasources:
       # url: "https://example.com/prices"   # omit to use the offline demo HTML
     redis:
       ttl_s: 30
-    timescale:
-      table: raw_ticks

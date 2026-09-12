@@ -7,10 +7,10 @@ Guidance for Claude Code working in this repository.
 The raw ingestion layer for the `alpha` quant server: many datasources
 (price/time-series, growing over time), one fetch loop each, writing
 unmodified JSON into Redis (latest value) and Postgres/TimescaleDB
-(`raw_ticks`, append-only). See `README.md` and `docs/architecture.md`.
+(`atlas.raw_ticks`, append-only). See `README.md` and `docs/architecture.md`.
 
 **Atlas does not clean data.** A separate, later project reads
-`raw_ticks` / the Redis keys and produces cleaned/joined data behind an
+`atlas.raw_ticks` / the Redis keys and produces cleaned/joined data behind an
 API. Do not add cleaning, resampling, or symbol-mapping logic here --
 that decision was made explicitly when this repo was started (2026-09-12).
 
@@ -52,7 +52,22 @@ that decision was made explicitly when this repo was started (2026-09-12).
    and skips the hypertable step with a message; it must never attempt
    the apt install or the restart itself.
 
-6. **This repo does not modify or delete anything in the other project
+6. **All Atlas tables live in the `atlas` schema, never `public`.**
+   `quant_db` (the database Atlas uses on the server) is TSE-GOLD-ALGO's
+   live trading database, with its own `hist`/`live` schemas already in
+   it. `atlas.raw_ticks` (schema-qualified) is the one table; a new
+   datasource is a new row shape in that same table (via the
+   `datasource` column), never a new table, and never anything created
+   outside the `atlas` schema.
+
+7. **The default DSN uses the Postgres Unix socket, not a password.**
+   `postgresql://quant@/quant_db?host=/var/run/postgresql` peer-auths as
+   OS user `quant` -- it works only because Atlas always runs as `quant`
+   on the same box as Postgres. Don't swap this for a TCP host without
+   checking pg_hba.conf allows it and a real password is available; the
+   whole point was to avoid putting a DB password in `.env`.
+
+8. **This repo does not modify or delete anything in the other project
    directories on the server** (`market_fetcher/`, `TSE-GOLD-ALGO/`,
    `alpha-capital/`). Their fetchers are consulted for conventions
    (Redis key patterns, `.env` naming, `.gitignore` shape) but migrating
@@ -66,8 +81,8 @@ that decision was made explicitly when this repo was started (2026-09-12).
 - Fetchers are `async def fetch()` even when the underlying HTTP call is
   sync-only for now -- keeps `runner.py`'s scheduling uniform as
   datasources with real async I/O are added.
-- `payload` in `RawRecord` / `raw_ticks` is stored as opaque JSON. Do not
-  add columns for datasource-specific fields to `raw_ticks` -- if a
+- `payload` in `RawRecord` / `atlas.raw_ticks` is stored as opaque JSON. Do not
+  add columns for datasource-specific fields to `atlas.raw_ticks` -- if a
   field needs to be queried directly and efficiently, that belongs in
   the downstream cleaned-data project's own schema, not here.
 

@@ -17,7 +17,7 @@ atlas/runner.py  -- one asyncio task per enabled datasource, own interval,
         v                      v
  RedisSink                TimescaleSink
  (latest value,           (append-only history,
-  TTL per key)              raw_ticks table)
+  TTL per key)              atlas.raw_ticks table)
 ```
 
 ## Why this split
@@ -33,7 +33,7 @@ Keeping raw ingestion separate from cleaning means:
 - a new datasource can go live the moment its fetcher is written --
   it doesn't need to wait for anyone to define what "clean" means for it
 - a bug in the cleaning logic can never corrupt the raw history, since
-  cleaning never writes back into `raw_ticks`
+  cleaning never writes back into `atlas.raw_ticks`
 - multiple different cleaning/serving projects can read the same raw
   data without coordinating with each other
 

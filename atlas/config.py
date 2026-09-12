@@ -18,7 +18,6 @@ class DatasourceConfig:
     enabled: bool
     fetcher_kwargs: dict[str, Any]
     redis_ttl_s: int | None
-    timescale_table: str
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -45,7 +44,6 @@ def load_config(path: str | Path = "config/datasources.yaml") -> AtlasConfig:
                 enabled=bool(entry.get("enabled", True)),
                 fetcher_kwargs=entry.get("kwargs", {}),
                 redis_ttl_s=entry.get("redis", {}).get("ttl_s"),
-                timescale_table=entry.get("timescale", {}).get("table", "raw_ticks"),
             )
         )
 

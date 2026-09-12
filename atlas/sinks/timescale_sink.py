@@ -9,7 +9,7 @@ import psycopg2.extras
 from atlas.base import RawRecord
 
 INSERT_SQL = """
-INSERT INTO raw_ticks (ts, datasource, symbol, payload)
+INSERT INTO atlas.raw_ticks (ts, datasource, symbol, payload)
 VALUES %s
 """
 

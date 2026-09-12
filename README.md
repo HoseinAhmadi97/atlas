@@ -22,10 +22,10 @@ atlas/
 |   |-- redis_sink.py     # latest-value cache, TTL per key
 |   `-- timescale_sink.py # append-only raw history
 `-- db/
-    `-- schema.sql         # raw_ticks table + hypertable notes
+    `-- schema.sql         # atlas.raw_ticks table + hypertable notes
 
 config/datasources.yaml    # one entry per datasource, see below
-scripts/bootstrap_db.py    # idempotent: creates raw_ticks (+ hypertable if available)
+scripts/bootstrap_db.py    # idempotent: creates atlas.raw_ticks (+ hypertable if available)
 deploy/atlas.service        # optional systemd unit
 docs/architecture.md
 tests/
@@ -49,12 +49,17 @@ extraction library a given datasource needs to `requirements.txt`.
 
 ## Prerequisites (server)
 
-- Postgres reachable at `ATLAS_PG_DSN` (the box already runs Postgres 16
-  for other projects -- reuse it, or point at a dedicated DB).
-- **TimescaleDB extension** is *not yet installed* on the `alpha`
-  quant box's Postgres (only `plpgsql` is present as of 2026-09-12).
-  `raw_ticks` works as a plain indexed table without it, but for the
-  hypertable conversion someone with sudo needs to run, once:
+- Postgres reachable at `ATLAS_PG_DSN`. On the `alpha` quant box, Atlas
+  uses the existing `quant_db` database (Postgres 16, already running)
+  but its own `atlas` schema -- `quant_db` also holds TSE-GOLD-ALGO's
+  live `hist`/`live` schemas, and `atlas.raw_ticks` is deliberately kept
+  out of that namespace. The socket-based DSN in `.env.example` needs no
+  password: it peer-auths as OS user `quant` over the local Unix socket,
+  which only works because Atlas always runs as `quant` on this same box.
+- **TimescaleDB extension** is *not yet installed* on that Postgres
+  (only `plpgsql` is present as of 2026-09-12).
+  `atlas.raw_ticks` works as a plain indexed table without it, but for
+  the hypertable conversion someone with sudo needs to run, once:
 
   ```bash
   sudo apt install timescaledb-2-postgresql-16
@@ -76,7 +81,7 @@ extraction library a given datasource needs to `requirements.txt`.
 ```bash
 cp .env.example .env               # fill in ATLAS_PG_DSN
 pip install -r requirements.txt
-python scripts/bootstrap_db.py     # creates raw_ticks
+python scripts/bootstrap_db.py     # creates atlas.raw_ticks
 # flip `enabled: true` on the `example` datasource in
 # config/datasources.yaml, then:
 python -m atlas.runner

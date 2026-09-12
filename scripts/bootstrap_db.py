@@ -33,7 +33,7 @@ def main() -> None:
             for stmt in statements:
                 cur.execute(stmt)
         conn.commit()
-        print("raw_ticks table + index: OK")
+        print("atlas.raw_ticks table + index: OK")
 
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'")
@@ -41,8 +41,8 @@ def main() -> None:
 
         if not has_timescale:
             print(
-                "timescaledb extension not installed -- raw_ticks stays a "
-                "plain table. See README.md 'Prerequisites' for the apt "
+                "timescaledb extension not installed -- atlas.raw_ticks stays "
+                "a plain table. See README.md 'Prerequisites' for the apt "
                 "install + CREATE EXTENSION steps (needs sudo)."
             )
             return
@@ -50,10 +50,10 @@ def main() -> None:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT create_hypertable(%s, %s, if_not_exists => TRUE)",
-                ("raw_ticks", "ts"),
+                ("atlas.raw_ticks", "ts"),
             )
         conn.commit()
-        print("raw_ticks hypertable: OK")
+        print("atlas.raw_ticks hypertable: OK")
 
 
 if __name__ == "__main__":
