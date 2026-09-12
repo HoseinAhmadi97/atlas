@@ -78,6 +78,16 @@ datasources:
     kwargs:
       symbols: ["USDTTMN"]
 
+  # goldprice.org international spot gold/silver (USD/oz) -- public,
+  # but gated on Origin/Referer headers matching a real browser hit.
+  # Not tied to TSE/IME trading hours, so no schedule window.
+  - name: goldprice
+    module: atlas.fetchers.goldprice_fetcher
+    class: GoldpriceFetcher
+    interval_s: 15
+    enabled: false
+    kwargs: {}
+
   - name: example
     module: atlas.fetchers.example_fetcher
     class: ExampleFetcher
