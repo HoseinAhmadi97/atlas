@@ -11,18 +11,18 @@ later project.
 
 ```
 atlas/
-├── base.py              # Fetcher ABC + RawRecord -- the only contract
-├── registry.py          # config entry -> running Fetcher instance
-├── config.py            # loads .env + config/datasources.yaml
-├── runner.py             # entrypoint: one task per enabled datasource
-├── fetchers/
-│   ├── example_fetcher.py         # copy this: JSON/API-style datasource
-│   └── example_scrape_fetcher.py  # copy this: HTML-scraping datasource
-├── sinks/
-│   ├── redis_sink.py     # latest-value cache, TTL per key
-│   └── timescale_sink.py # append-only raw history
-└── db/
-    └── schema.sql         # raw_ticks table + hypertable notes
+|-- base.py              # Fetcher ABC + RawRecord -- the only contract
+|-- registry.py          # config entry -> running Fetcher instance
+|-- config.py            # loads .env + config/datasources.yaml
+|-- runner.py             # entrypoint: one task per enabled datasource
+|-- fetchers/
+|   |-- example_fetcher.py         # copy this: JSON/API-style datasource
+|   `-- example_scrape_fetcher.py  # copy this: HTML-scraping datasource
+|-- sinks/
+|   |-- redis_sink.py     # latest-value cache, TTL per key
+|   `-- timescale_sink.py # append-only raw history
+`-- db/
+    `-- schema.sql         # raw_ticks table + hypertable notes
 
 config/datasources.yaml    # one entry per datasource, see below
 scripts/bootstrap_db.py    # idempotent: creates raw_ticks (+ hypertable if available)
