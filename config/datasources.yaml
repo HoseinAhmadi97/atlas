@@ -58,6 +58,16 @@ datasources:
       start: "12:00"
       end: "18:00"
 
+  # estjt.ir gold/coin retail prices -- HTML scrape, no auth. No
+  # schedule window set (unlike ime/tadbir/farabi) since this isn't
+  # tied to TSE/IME trading hours; add one if it should be.
+  - name: estjt
+    module: atlas.fetchers.estjt_fetcher
+    class: EstjtFetcher
+    interval_s: 15
+    enabled: false
+    kwargs: {}
+
   - name: example
     module: atlas.fetchers.example_fetcher
     class: ExampleFetcher

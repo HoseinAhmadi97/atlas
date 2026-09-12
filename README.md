@@ -22,7 +22,8 @@ atlas/
 |   |-- example_scrape_fetcher.py  # template: HTML-scraping datasource
 |   |-- ime_fetcher.py             # real: Iran Mercantile Exchange live market
 |   |-- nav_tadbir_fetcher.py      # real: TSE gold fund NAV, Tadbir provider
-|   `-- nav_farabi_fetcher.py      # real: TSE gold fund NAV, Farabi provider
+|   |-- nav_farabi_fetcher.py      # real: TSE gold fund NAV, Farabi provider
+|   `-- estjt_fetcher.py           # real: estjt.ir gold/coin retail prices (HTML scrape)
 |-- sinks/
 |   |-- redis_sink.py     # latest-value snapshot cache, no TTL
 |   `-- timescale_sink.py # latest-value-per-minute history (UPSERT)
