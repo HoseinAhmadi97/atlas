@@ -88,6 +88,15 @@ datasources:
     enabled: false
     kwargs: {}
 
+  # Tabdeal festival prices (currency/coin/gold) -- public HTTP API,
+  # no auth. Not tied to TSE/IME trading hours, so no schedule window.
+  - name: tabdeal
+    module: atlas.fetchers.tabdeal_fetcher
+    class: TabdealFetcher
+    interval_s: 15
+    enabled: false
+    kwargs: {}
+
   - name: example
     module: atlas.fetchers.example_fetcher
     class: ExampleFetcher

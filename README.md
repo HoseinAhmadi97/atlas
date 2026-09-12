@@ -25,7 +25,8 @@ atlas/
 |   |-- nav_farabi_fetcher.py      # real: TSE gold fund NAV, Farabi provider
 |   |-- estjt_fetcher.py           # real: estjt.ir gold/coin retail prices (HTML scrape)
 |   |-- wallex_fetcher.py          # real: Wallex crypto/currency markets
-|   `-- goldprice_fetcher.py       # real: goldprice.org international gold/silver spot
+|   |-- goldprice_fetcher.py       # real: goldprice.org international gold/silver spot
+|   `-- tabdeal_fetcher.py         # real: Tabdeal festival prices (currency/coin/gold)
 |-- sinks/
 |   |-- redis_sink.py     # latest-value snapshot cache, no TTL
 |   `-- timescale_sink.py # latest-value-per-minute history (UPSERT)
