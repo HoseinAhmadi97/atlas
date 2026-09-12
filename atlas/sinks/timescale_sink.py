@@ -66,9 +66,23 @@ class TimescaleSink:
         if not rows:
             return
         conn = self._connection()
-        with conn.cursor() as cur:
-            psycopg2.extras.execute_values(cur, INSERT_SQL, rows)
-        conn.commit()
+        try:
+            with conn.cursor() as cur:
+                psycopg2.extras.execute_values(cur, INSERT_SQL, rows)
+            conn.commit()
+        except Exception:
+            # A failed statement leaves the connection in an aborted
+            # transaction; every write after this one would silently
+            # fail forever otherwise. Closing forces _connection() to
+            # reconnect fresh on the next call. rollback() can itself
+            # fail if the connection is already broken (not just the
+            # transaction) -- that's fine, close() below covers it.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            self.close()
+            raise
 
     def close(self) -> None:
         if self._conn is not None and not self._conn.closed:

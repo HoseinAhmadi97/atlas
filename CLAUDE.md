@@ -92,6 +92,14 @@ that decision was made explicitly when this repo was started (2026-09-12).
    `(isin, time, source)` primary key if `time` held it instead of the
    always-advancing fetch time.
 
+10. **`TimescaleSink` closes its connection on any write failure.** A
+    failed INSERT leaves a psycopg2 connection in an aborted-transaction
+    state; without an explicit `rollback()` + `close()`, every write
+    after the first failure would silently keep failing forever (the
+    connection is reused, never reconnected) until the whole process
+    restarted -- found while this ran continuously against real IME
+    traffic. Don't drop this handling to simplify `write()`.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other

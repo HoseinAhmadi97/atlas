@@ -45,3 +45,37 @@ def test_write_passes_seven_columns_in_schema_order():
     assert received_at == time_
     assert source == "ime"
     assert payload == '{"a": 1}'
+
+
+def test_failed_write_forces_reconnect_on_next_call():
+    """Regression: a failed INSERT used to leave the connection in an
+    aborted-transaction state forever (never closed, never rolled
+    back), so every write after the first failure would silently keep
+    failing until the whole process restarted."""
+    with patch("atlas.sinks.timescale_sink.psycopg2.connect") as mock_connect, patch(
+        "atlas.sinks.timescale_sink.psycopg2.extras.execute_values"
+    ) as mock_execute_values:
+        first_conn = MagicMock()
+        first_conn.closed = False
+        first_conn.close.side_effect = lambda: setattr(first_conn, "closed", True)
+        second_conn = MagicMock()
+        second_conn.closed = False
+        mock_connect.side_effect = [first_conn, second_conn]
+        mock_execute_values.side_effect = [Exception("boom"), None]
+
+        sink = TimescaleSink("postgresql://fake")
+        ts = dt.datetime(2026, 9, 12, 16, 48, 0, tzinfo=TEHRAN_TZ)
+        record = RawRecord(isin="LeadIngot", ts=ts, price=1.0, payload={})
+
+        try:
+            sink.write("ime", [record])
+        except Exception:
+            pass
+
+        first_conn.rollback.assert_called_once()
+        first_conn.close.assert_called_once()
+
+        sink.write("ime", [record])  # must reconnect, not reuse the aborted connection
+
+    assert mock_connect.call_count == 2
+    second_conn.commit.assert_called_once()
