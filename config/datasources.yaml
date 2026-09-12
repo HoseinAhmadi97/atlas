@@ -37,7 +37,7 @@ datasources:
     module: atlas.fetchers.nav_farabi_fetcher
     class: NavFarabiFetcher
     interval_s: 20
-    enabled: false
+    enabled: true
     kwargs:
       account_name: "Ahamdi_Farabi"
     redis:
