@@ -56,21 +56,20 @@ extraction library a given datasource needs to `requirements.txt`.
   out of that namespace. The socket-based DSN in `.env.example` needs no
   password: it peer-auths as OS user `quant` over the local Unix socket,
   which only works because Atlas always runs as `quant` on this same box.
-- **TimescaleDB extension** is *not yet installed* on that Postgres
-  (only `plpgsql` is present as of 2026-09-12).
-  `atlas.raw_ticks` works as a plain indexed table without it, but for
-  the hypertable conversion someone with sudo needs to run, once:
-
-  ```bash
-  sudo apt install timescaledb-2-postgresql-16
-  sudo timescaledb-tune --quiet --yes
-  sudo systemctl restart postgresql
-  ```
-
-  This restarts Postgres system-wide, so coordinate before running it --
-  the box also serves other projects. `scripts/bootstrap_db.py` detects
-  whether the extension is present and skips the hypertable step (with a
-  message) if not; it never tries to install anything itself.
+- **TimescaleDB extension** is already enabled in `quant_db` (2.29.2,
+  same one TSE-GOLD-ALGO's own hypertables use -- extensions are
+  per-database, and an earlier check of the `postgres` database showing
+  only `plpgsql` was a false negative). `scripts/bootstrap_db.py`
+  detected it and converted `atlas.raw_ticks` to a hypertable
+  automatically; nothing further to install. If Atlas is ever pointed
+  at a *different* Postgres that genuinely lacks the extension,
+  `bootstrap_db.py` still degrades gracefully to a plain indexed table
+  and says so -- it never attempts an install or a restart itself.
+- The `quant` role needs `CREATE` on whichever database Atlas's schema
+  lives in (`GRANT CREATE ON DATABASE <db> TO quant;`, run once by
+  whoever owns Postgres) -- `quant_db` didn't have this by default since
+  `quant` only owned objects inside `hist`/`live`, not the database
+  itself.
 - Redis (already running on the box, already used by `market_fetcher`).
 - Python: use the existing `/opt/quant/envs/quant/bin/python` (3.10,
   already has pandas/redis/psycopg2/sqlalchemy) -- no new env needed,

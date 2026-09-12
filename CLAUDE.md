@@ -43,14 +43,18 @@ that decision was made explicitly when this repo was started (2026-09-12).
    stale. `RedisSink` defaults `ttl_s` from config specifically to avoid
    reproducing that here.
 
-5. **`atlas/db/schema.sql`'s hypertable conversion is commented out on
-   purpose.** The TimescaleDB extension was not installed on the
-   server's Postgres as of 2026-09-12 (only `plpgsql` was present), and
-   installing it needs `apt install` + `systemctl restart postgresql`
-   as root -- a shared-service restart that affects other projects on
-   the box. `scripts/bootstrap_db.py` detects the extension's absence
-   and skips the hypertable step with a message; it must never attempt
-   the apt install or the restart itself.
+5. **`atlas/db/schema.sql`'s hypertable conversion is commented out, and
+   `scripts/bootstrap_db.py` decides at runtime whether to apply it.**
+   Postgres extensions are per-database -- checking `pg_extension` on
+   the wrong database (e.g. `postgres` instead of `quant_db`) gives a
+   false "not installed" reading, which is what happened once during
+   this repo's setup. `quant_db` already has TimescaleDB (2.29.2,
+   shared with TSE-GOLD-ALGO's own hypertables) and `atlas.raw_ticks`
+   is a hypertable in it. If Atlas is ever pointed at a Postgres that
+   truly lacks the extension, `bootstrap_db.py` must keep degrading to
+   a plain indexed table rather than attempting an install or a
+   `systemctl restart postgresql` itself -- that restart is a
+   shared-service action affecting other projects on the box.
 
 6. **All Atlas tables live in the `atlas` schema, never `public`.**
    `quant_db` (the database Atlas uses on the server) is TSE-GOLD-ALGO's
