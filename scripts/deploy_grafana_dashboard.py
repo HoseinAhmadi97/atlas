@@ -214,6 +214,23 @@ PANELS = [
         """,
         unit="currencyIRT",
     ),
+    _sql_panel(
+        {"x": 0, "y": 40, "w": 24, "h": 8},
+        "USD/Toman: tabdeal dollar vs wallex USDTTMN",
+        "timeseries",
+        """
+        SELECT time AT TIME ZONE 'Asia/Tehran' AS "time", source, price
+        FROM atlas.raw_ticks
+        WHERE ((source = 'tabdeal' AND isin = 'dollar') OR (source = 'wallex' AND isin = 'USDTTMN'))
+          AND $__timeFilter(time AT TIME ZONE 'Asia/Tehran')
+        ORDER BY time
+        """,
+        unit="currencyIRT",
+        description=(
+            "Two different instruments (cash USD rate vs a USDT/Toman market price), not the same "
+            "isin -- shown together as a proxy comparison, not an exact-match overlay like the panels above."
+        ),
+    ),
 ]
 
 

@@ -38,13 +38,17 @@ async def test_fetch_returns_one_record_per_known_row_across_all_three_endpoints
 
 
 @pytest.mark.asyncio
-async def test_price_is_converted_rial_to_toman():
+async def test_price_is_the_raw_api_number_unconverted():
+    # Regression: Tabdeal's last_price unit changed (Rial -> Toman)
+    # without notice a day after this fetcher was first written, which
+    # made a baked-in /10 conversion silently wrong. price must be the
+    # raw number, no assumed factor -- see the module docstring.
     fetcher = TabdealFetcher()
     with patch("atlas.fetchers.tabdeal_fetcher._fetch_one", side_effect=_fake_fetch_one):
         records = await fetcher.fetch()
 
     dollar = next(r for r in records if r.isin == "dollar")
-    assert dollar.price == 233900.0  # 2339000 Rial / 10
+    assert dollar.price == 2339000.0
 
 
 @pytest.mark.asyncio

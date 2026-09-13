@@ -10,7 +10,7 @@ from atlas.base import Fetcher, RawRecord
 
 # Tabdeal festival asset-prices feed -- public, no auth. Three separate
 # endpoints (currency/coin/gold), each a flat list of
-# {"price_title": <Persian name>, "last_price": <Rial string>,
+# {"price_title": <Persian name>, "last_price": <numeric string>,
 # "price_change": <percent>}.
 #
 # Reference: the user-supplied script expected a Nuxt-style payload
@@ -21,6 +21,20 @@ from atlas.base import Fetcher, RawRecord
 # endpoint returns several rows in the one HTTP call the source script
 # already pays for. Atlas keeps all of them instead of narrowing to
 # the single row the script tracked.
+#
+# `last_price`'s unit is NOT stable: on first writing this fetcher it
+# was Rial (a Rial -> Toman /10 conversion matched every other Iranian
+# source here); one day later the same endpoints started returning
+# Toman directly, with no announcement -- confirmed by cross-checking
+# against wallex's USDTTMN (a USD/Toman proxy) and estjt's geram18,
+# both of which matched the *unconverted* raw value, not the
+# previously-applied /10 one. Converting units is a cleaning decision
+# this raw layer shouldn't be making in the first place, doubly so for
+# a source that changes its own convention without notice -- `price`
+# is now the raw API number, unconverted. Whatever normalizes this
+# consistently belongs in the downstream cleaned-data project, which
+# can decide per-poll (e.g. by cross-checking against a stable
+# reference like wallex) rather than assuming a fixed factor here.
 
 URLS = {
     "currency": "https://api-web.tabdeal.org/r/festival/get-asset-prices/?asset_type=currency",
@@ -61,8 +75,8 @@ def _fetch_one(url: str) -> list[dict]:
 
 
 class TabdealFetcher(Fetcher):
-    """Tabdeal festival prices (currency/coin/gold). Prices convert
-    Rial -> Toman (/10), matching every other Iranian datasource here."""
+    """Tabdeal festival prices (currency/coin/gold). `price` is the raw
+    API number, unconverted -- see the module docstring for why."""
 
     name = "tabdeal"
 
@@ -87,14 +101,14 @@ class TabdealFetcher(Fetcher):
                 if last_price is None:
                     continue
                 try:
-                    price_rial = float(str(last_price).replace(",", ""))
+                    price = float(str(last_price).replace(",", ""))
                 except ValueError:
                     continue
                 records.append(
                     RawRecord(
                         isin=isin,
                         ts=now,
-                        price=price_rial / 10,  # Rial -> Toman
+                        price=price,  # raw API number, unconverted -- see module docstring
                         payload={**item, "asset_type": asset_type},
                     )
                 )

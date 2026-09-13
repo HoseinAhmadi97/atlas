@@ -159,6 +159,21 @@ that decision was made explicitly when this repo was started (2026-09-12).
     and README.md "Grafana" for how it was verified (staleness came
     out as single-digit seconds for live sources, not ~12600).
 
+15. **Never bake an assumed unit-conversion factor into a fetcher for a
+    source that doesn't document its own units.** `tabdeal_fetcher.py`
+    originally divided `last_price` by 10 (Rial -> Toman); one day
+    later Tabdeal's endpoints started returning Toman directly with no
+    announcement, and the fixed /10 silently became a second,
+    incorrect conversion -- caught by comparing against wallex's
+    USDTTMN, which the unconverted raw number matched and the
+    converted one didn't. `price` is the raw API number now; if a
+    downstream consumer needs a consistent unit across pollers whose
+    convention can drift, that decision belongs there (it can
+    cross-check against a stable reference per poll), not as a
+    constant baked into raw ingestion. This is also why `payload` is
+    never narrowed: the full raw record is what lets a problem like
+    this be diagnosed after the fact instead of just observed.
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other
