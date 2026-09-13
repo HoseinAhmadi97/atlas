@@ -147,6 +147,18 @@ that decision was made explicitly when this repo was started (2026-09-12).
     `tests/test_tabdeal_fetcher.py`), and an unmapped/unexpected name
     should be skipped, never sent through as-is or silently truncated.
 
+14. **Any SQL against `atlas.raw_ticks` from outside Atlas (Grafana,
+    an ad hoc psql session, a future consumer) must wrap
+    `time`/`received_at`/`created_at` in `AT TIME ZONE 'Asia/Tehran'`
+    before comparing against `now()` or a `timestamptz`.** Those
+    columns are naive Tehran local time, not UTC -- Postgres treats a
+    bare naive value as being in the connecting session's timezone
+    (UTC for Grafana's datasource), so skipping the conversion silently
+    shifts every timestamp by -03:30 without erroring. See
+    `scripts/deploy_grafana_dashboard.py`'s panel SQL for the pattern,
+    and README.md "Grafana" for how it was verified (staleness came
+    out as single-digit seconds for live sources, not ~12600).
+
 ## Conventions
 
 - `from __future__ import annotations` throughout, matching the other

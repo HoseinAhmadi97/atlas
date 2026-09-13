@@ -35,6 +35,7 @@ atlas/
 
 config/datasources.yaml    # one entry per datasource, see below
 scripts/bootstrap_db.py    # idempotent: creates atlas.raw_ticks (+ hypertable if available)
+scripts/deploy_grafana_dashboard.py  # creates/updates the "Atlas" Grafana dashboard, see below
 deploy/atlas.service        # optional systemd unit
 docs/architecture.md
 tests/
@@ -255,6 +256,48 @@ python -m atlas.runner
 ```bash
 pytest                              # unit tests, no real Redis/Postgres needed
 ```
+
+## Grafana
+
+The server already runs Grafana (`grafana.alefcapital.ir`), with a
+Postgres/Timescale datasource named `quant_db` (uid `quantdb`) other
+projects use. Atlas reuses that same datasource -- no new one needed --
+but its `grafana_ro` role has no access to the `atlas` schema by
+default (it was only ever granted `hist`/`live`). One-time setup, run
+as `quant` (which owns the schema, so no superuser needed):
+
+```sql
+GRANT USAGE ON SCHEMA atlas TO grafana_ro;
+GRANT SELECT ON atlas.raw_ticks TO grafana_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA atlas GRANT SELECT ON TABLES TO grafana_ro;
+```
+
+`scripts/deploy_grafana_dashboard.py` creates/updates an "Atlas"
+dashboard (fixed uid, so re-running updates it instead of duplicating)
+comparing overlapping instruments across datasources -- e.g.
+`geram18`/`geram24` (estjt vs tabdeal), `ons_tala` (estjt vs
+goldprice), and all 31 gold-fund NAVs (tadbir vs farabi) -- plus
+per-source freshness and reporting-lag panels:
+
+```bash
+GRAFANA_URL=https://grafana.alefcapital.ir GRAFANA_TOKEN=glsa_... \
+    python scripts/deploy_grafana_dashboard.py
+```
+
+`GRAFANA_TOKEN` is a Service Account token (Admin role scoped to
+Grafana, not a personal password) -- create one under Administration ->
+Users and access -> Service accounts. Never commit it.
+
+**Every query against `atlas.raw_ticks` from Grafana (or any other
+external tool) must wrap `time`/`received_at`/`created_at` in
+`AT TIME ZONE 'Asia/Tehran'` before comparing against `now()` or
+Grafana's `$__timeFilter()`.** Those columns are naive Tehran local
+time, not UTC (see the schema section above) -- Postgres treats a bare
+naive timestamp as whatever the connecting session's timezone happens
+to be (UTC for Grafana's datasource), so an unconverted comparison
+silently shifts every timestamp by -03:30. Verified by checking
+"seconds since last row" came out as single digits for actively-polling
+sources, not ~12600 (3.5 hours) off, before trusting any panel.
 
 ## Relationship to existing fetchers
 
