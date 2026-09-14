@@ -35,6 +35,25 @@ def _parse_last_update(value: str) -> dt.datetime:
     return dt.datetime.strptime(value, fmt).replace(tzinfo=TEHRAN_TZ)
 
 
+def _correct_meridiem(source_ts: dt.datetime, now: dt.datetime) -> dt.datetime:
+    """Undo IME's occasional 12-hour-without-PM LastUpdate (seen live on
+    one contract: 13:xx rendered as 01:xx -- the "%H" field is documented
+    but some contracts' backend evidently formats with "hh" instead).
+
+    LastUpdate is always within a few seconds of the poll that fetched
+    it, so the fix is comparative rather than a fixed cutoff: an hour
+    below 12 is only rewritten to hour+12 when doing so lands closer to
+    `now` than leaving it alone does. A genuine morning timestamp (there
+    is none here -- IME's schedule starts at 12:00 -- but this keeps the
+    function correct without hardcoding that) is left untouched because
+    +12 would only move it further from `now`.
+    """
+    if source_ts.hour >= 12:
+        return source_ts
+    shifted = source_ts.replace(hour=source_ts.hour + 12)
+    return shifted if abs(now - shifted) < abs(now - source_ts) else source_ts
+
+
 class IMEFetcher(Fetcher):
     """IME CDC live market: one RawRecord per contract per poll."""
 
@@ -58,6 +77,8 @@ class IMEFetcher(Fetcher):
 
             last_update = contract.get("LastUpdate")
             source_ts = _parse_last_update(last_update) if last_update else None
+            if source_ts is not None:
+                source_ts = _correct_meridiem(source_ts, now)
 
             records.append(
                 RawRecord(

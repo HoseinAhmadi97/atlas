@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from atlas.fetchers.ime_fetcher import IMEFetcher, _parse_last_update
+from atlas.fetchers.ime_fetcher import TEHRAN_TZ, IMEFetcher, _correct_meridiem, _parse_last_update
 
 SAMPLE_RESPONSE = [
     {
@@ -101,3 +101,44 @@ async def test_fetch_handles_trimmed_fractional_seconds_from_api():
     assert records[0].source_ts == dt.datetime(
         2026, 9, 12, 16, 53, 35, 80000, tzinfo=records[0].source_ts.tzinfo
     )
+
+
+# Regression: one IME contract has been observed reporting LastUpdate on
+# a 12-hour clock with no PM marker -- 13:xx serialized as 01:xx. Message
+# text from IME never flags this (unlike the TSE broker's closed-market
+# strings elsewhere in this repo family), so the only signal is that the
+# reported time is implausibly far from the poll that just fetched it.
+@pytest.mark.parametrize(
+    "source_hour, now_hour, expected_hour",
+    [
+        (1, 13, 13),   # 01:xx claimed, polled at 13:xx -- PM marker dropped, fix it
+        (11, 23, 23),  # same bug at the far edge of the 12-hour range
+        (13, 13, 13),  # already correct 24-hour -- leave alone
+        (0, 0, 0),     # genuinely midnight and now is midnight -- no correction needed
+        (3, 4, 3),     # plain few-minutes clock drift, not the AM/PM bug -- leave alone
+    ],
+)
+def test_correct_meridiem(source_hour, now_hour, expected_hour):
+    now = dt.datetime(2026, 9, 13, now_hour, 5, 0, tzinfo=TEHRAN_TZ)
+    source_ts = dt.datetime(2026, 9, 13, source_hour, 4, 58, tzinfo=TEHRAN_TZ)
+    assert _correct_meridiem(source_ts, now).hour == expected_hour
+
+
+@pytest.mark.asyncio
+async def test_fetch_corrects_pm_last_update_reported_without_marker():
+    response = [{"ContractCode": "LeadIngot", "LastUpdate": "2026-09-13T01:59:58.0"}]
+    fixed_now = dt.datetime(2026, 9, 13, 14, 0, 0, tzinfo=TEHRAN_TZ)
+
+    class _FrozenDateTime(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+    fetcher = IMEFetcher()
+    with patch("atlas.fetchers.ime_fetcher.requests.get") as mock_get, patch(
+        "atlas.fetchers.ime_fetcher.dt.datetime", _FrozenDateTime
+    ):
+        mock_get.return_value = MagicMock(json=lambda: response, raise_for_status=lambda: None)
+        records = await fetcher.fetch()
+
+    assert records[0].source_ts.hour == 13
