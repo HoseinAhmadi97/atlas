@@ -76,6 +76,25 @@ def _parse_nav_date_of_event(value: str | None) -> dt.datetime | None:
         return None
 
 
+def _correct_meridiem(source_ts: dt.datetime, now: dt.datetime) -> dt.datetime:
+    """Undo a 12-hour-without-PM navDateOfEvent -- confirmed live on
+    IRTKKIAN0001 (fund "گوهر") on 2026-09-14: every poll's navDateOfEvent
+    came back exactly 12 hours behind the poll's own wall-clock time
+    (e.g. reported 02:22:43 while every other Farabi fund and the fetch
+    itself agreed on 14:23:00), while every other fund in the same batch
+    was unaffected -- so this is Farabi mis-serializing one fund's field,
+    not a systemic clock issue. Same fix as ime_fetcher.py's
+    _correct_meridiem (see there for the general rationale): navDateOfEvent
+    is always within seconds of the poll, so shifting by 12 hours only
+    when that lands closer to `now` self-corrects without needing to
+    hardcode which fund is affected.
+    """
+    if source_ts.hour >= 12:
+        return source_ts
+    shifted = source_ts.replace(hour=source_ts.hour + 12)
+    return shifted if abs(now - shifted) < abs(now - source_ts) else source_ts
+
+
 class NavFarabiFetcher(Fetcher):
     """Farabi NAV feed for TSE gold funds, one HTTP call per ISIN per poll."""
 
@@ -114,13 +133,16 @@ class NavFarabiFetcher(Fetcher):
             price = result.get("priceOfRedemptionNav")
             if price is None:
                 continue
+            source_ts = _parse_nav_date_of_event(result.get("navDateOfEvent"))
+            if source_ts is not None:
+                source_ts = _correct_meridiem(source_ts, now)
             records.append(
                 RawRecord(
                     isin=isin,
                     ts=now,
                     price=price,
                     payload=result,
-                    source_ts=_parse_nav_date_of_event(result.get("navDateOfEvent")),
+                    source_ts=source_ts,
                 )
             )
 

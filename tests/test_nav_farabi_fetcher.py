@@ -1,9 +1,12 @@
+import datetime as dt
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from atlas.fetchers.nav_farabi_fetcher import (
+    TEHRAN_TZ,
     NavFarabiFetcher,
+    _correct_meridiem,
     _parse_nav_date_of_event,
 )
 
@@ -104,3 +107,56 @@ async def test_fetch_skips_isin_with_no_price():
         records = await fetcher.fetch()
 
     assert records == []
+
+
+# Regression: IRTKKIAN0001 ("گوهر") confirmed live on 2026-09-14 --
+# navDateOfEvent came back exactly 12 hours behind the poll's own
+# wall-clock time (02:22:43 reported while the fetch itself and every
+# other fund agreed on 14:23:00), fund-specific, not a feed-wide issue.
+@pytest.mark.parametrize(
+    "source_hour, now_hour, expected_hour",
+    [
+        (2, 14, 14),   # the exact IRTKKIAN0001 case observed live
+        (1, 13, 13),
+        (13, 13, 13),  # already correct 24-hour -- leave alone
+        (3, 4, 3),     # plain few-minutes drift, not the AM/PM bug -- leave alone
+    ],
+)
+def test_correct_meridiem(source_hour, now_hour, expected_hour):
+    now = dt.datetime(2026, 9, 14, now_hour, 23, 0, tzinfo=TEHRAN_TZ)
+    source_ts = dt.datetime(2026, 9, 14, source_hour, 22, 43, tzinfo=TEHRAN_TZ)
+    assert _correct_meridiem(source_ts, now).hour == expected_hour
+
+
+@pytest.mark.asyncio
+async def test_fetch_corrects_one_funds_nav_date_without_affecting_others():
+    responses = {
+        "IRTKKIAN0001": {
+            "isin": "IRTKKIAN0001",
+            "priceOfRedemptionNav": 500000,
+            "navDateOfEvent": "2026-09-14T02:22:43",
+        },
+        "IRTKZARF0001": dict(SAMPLE_FARABI_RESPONSE, navDateOfEvent="2026-09-14T14:23:00"),
+    }
+    fixed_now = dt.datetime(2026, 9, 14, 14, 23, 0, tzinfo=TEHRAN_TZ)
+
+    class _FrozenDateTime(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+    fetcher = NavFarabiFetcher(isins=["IRTKKIAN0001", "IRTKZARF0001"])
+
+    def fake_get(url, headers=None, timeout=None):
+        isin = url.rsplit("/", 2)[-2]
+        return MagicMock(status_code=200, json=lambda: responses[isin], raise_for_status=lambda: None)
+
+    with patch("atlas.fetchers.nav_farabi_fetcher._fetch_token", return_value="Bearer x"), patch(
+        "atlas.fetchers.nav_farabi_fetcher.requests.get", side_effect=fake_get
+    ), patch("atlas.fetchers.nav_farabi_fetcher.dt.datetime", _FrozenDateTime):
+        records = await fetcher.fetch()
+
+    kian = next(r for r in records if r.isin == "IRTKKIAN0001")
+    zarf = next(r for r in records if r.isin == "IRTKZARF0001")
+    assert kian.source_ts.hour == 14  # corrected from the reported 02
+    assert zarf.source_ts.hour == 14  # already correct, untouched
