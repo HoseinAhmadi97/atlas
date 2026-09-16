@@ -65,8 +65,11 @@ datasources:
     module: atlas.fetchers.estjt_fetcher
     class: EstjtFetcher
     interval_s: 15
-    enabled: false
+    enabled: true
     kwargs: {}
+    schedule:
+      start: "11:00"
+      end: "20:00"
 
   # Wallex crypto/currency markets -- public HTTP API, no auth. Not
   # tied to TSE/IME trading hours, so no schedule window.
@@ -74,7 +77,7 @@ datasources:
     module: atlas.fetchers.wallex_fetcher
     class: WallexFetcher
     interval_s: 10
-    enabled: false
+    enabled: true
     kwargs:
       symbols: ["USDTTMN"]
 
@@ -85,7 +88,7 @@ datasources:
     module: atlas.fetchers.goldprice_fetcher
     class: GoldpriceFetcher
     interval_s: 15
-    enabled: false
+    enabled: true
     kwargs: {}
 
   # Tabdeal festival prices (currency/coin/gold) -- public HTTP API,
@@ -94,8 +97,11 @@ datasources:
     module: atlas.fetchers.tabdeal_fetcher
     class: TabdealFetcher
     interval_s: 15
-    enabled: false
+    enabled: true
     kwargs: {}
+    schedule:
+      start: "11:00"
+      end: "20:00"
 
   - name: example
     module: atlas.fetchers.example_fetcher
